@@ -13,20 +13,16 @@ import type { Element, Netlist } from '../../netlist/build'
  *   v(電源): + ` waveform freq maxVoltage bias phase duty`   (DC は waveform=0)
  *   r(抵抗): + ` resistance`
  *   s(SW) : + ` position momentary`                          (0=閉 / 1=開)
- *   162(LED): + ` model cr cg cb maxBrightnessCurrent`       (flags に FLAG_MODEL)
+ *   162(LED): + ` colorR colorG colorB maxBrightnessCurrent`  (flags=0, model 名なし)
  *   g(GND): 基底のみ
- * ※ LED の model 文字列と `$` ヘッダのパラメータは版依存。ホストするビルドの
- *    エクスポート出力と突き合わせて確定する (テストは構造で固定している)。
+ * ※ 形式は実物 CircuitJS1 (falstad.com) に importCircuit/exportCircuit で
+ *    投入して確定済み。特に LED はフラグ 0・色直値でないとパースされない
+ *    (model 名つき 162 は要素が黙って捨てられる)。
  */
 
 /** 1 セル = 32px (中点が 16px グリッドに乗る)。座標は接続性のみ担保できればよい */
 const CELL_PX = 32
 const HALF = CELL_PX / 2
-
-/** LED の diode モデル (要ホストビルド確認)。default でも点灯確認はできる */
-const LED_MODEL = 'default'
-/** DiodeElm.FLAG_MODEL (model 文字列を dump する版のフラグ) */
-const FLAG_MODEL = 8
 
 interface Point {
   readonly x: number
@@ -69,15 +65,11 @@ const elementLine = (e: Element): string => {
         'false',
       ])
     case 'led':
-      return elmLine('162', at('anode'), at('cathode'), FLAG_MODEL, [
-        LED_MODEL,
-        1,
-        0,
-        0,
-        0.02,
-      ])
+      // フラグ 0 + 色直値 (colorR colorG colorB mbc)。赤 = (1,0,0)
+      return elmLine('162', at('anode'), at('cathode'), 0, [1, 0, 0, 0.02])
     case 'diode':
-      return elmLine('d', at('anode'), at('cathode'), FLAG_MODEL, [LED_MODEL])
+      // フラグ 0 で既定モデル (default)
+      return elmLine('d', at('anode'), at('cathode'), 0, [])
     case 'capacitor':
       return elmLine('c', at('a'), at('b'), 0, [d.farads, 0, 0])
     case 'transistor-npn':
