@@ -38,10 +38,22 @@ export const PARTS: readonly Part[] = [
     device: { kind: 'resistor', ohms: 10000, pins: { a: 'N', b: 'S' } },
   },
   {
+    id: 'resistor-47k',
+    name: '抵抗 47kΩ',
+    internalNets: [],
+    device: { kind: 'resistor', ohms: 47000, pins: { a: 'N', b: 'S' } },
+  },
+  {
     id: 'capacitor-100n',
     name: 'コンデンサ 0.1µF',
     internalNets: [],
     device: { kind: 'capacitor', farads: 100e-9, pins: { a: 'N', b: 'S' } },
+  },
+  {
+    id: 'capacitor-10u',
+    name: '電解コンデンサ 10µF',
+    internalNets: [],
+    device: { kind: 'capacitor', farads: 10e-6, pins: { a: 'N', b: 'S' } },
   },
   {
     id: 'capacitor-100u',

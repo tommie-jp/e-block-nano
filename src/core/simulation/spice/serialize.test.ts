@@ -54,6 +54,17 @@ describe('toSpice', () => {
     expect(closedText).not.toContain('1e9')
   })
 
+  test('emits an NPN transistor as a Q line with a model', () => {
+    // 電池も置いて groundNode を作る (変換の前提)
+    let board = placeBlock(createBoard(6, 8), 'battery-3v', { row: 0, col: 0 })
+    board = placeBlock(board, 'transistor-npn', { row: 2, col: 2 })
+    const { text } = toSpice(buildNetlist(board))
+
+    // Q<k> collector base emitter <model>
+    expect(text).toMatch(/^Q\d+ \S+ \S+ \S+ ENPN$/m)
+    expect(text).toContain('.model ENPN NPN')
+  })
+
   test('emits .op by default and .tran when requested', () => {
     const netlist = fixtureNetlist()
     expect(toSpice(netlist).text).toContain('.op')

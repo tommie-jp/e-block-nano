@@ -189,7 +189,9 @@ const symbolFor = (
 const LABELS: Record<string, string> = {
   'resistor-1k': '1kΩ',
   'resistor-10k': '10kΩ',
+  'resistor-47k': '47kΩ',
   'capacitor-100n': '0.1µ',
+  'capacitor-10u': '10µ',
   'capacitor-100u': '100µ',
   'led-red': 'LED',
   'diode-schottky': 'BAT43',

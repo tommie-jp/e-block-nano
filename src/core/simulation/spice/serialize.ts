@@ -17,10 +17,12 @@ import type { Element, Netlist } from '../../netlist/build'
 /** 赤 LED の簡易ダイオードモデル (Vf≈1.9V @ 1mA)。素振りで確認 */
 const LED_MODEL = 'ELED'
 const DIODE_MODEL = 'EDIODE'
-const MODEL_LINES = [
-  `.model ${LED_MODEL} D(IS=1.4e-19 N=2)`,
-  `.model ${DIODE_MODEL} D(IS=1e-12 N=1)`,
-]
+const NPN_MODEL = 'ENPN'
+const MODEL_LINES = {
+  led: `.model ${LED_MODEL} D(IS=1.4e-19 N=2)`,
+  diode: `.model ${DIODE_MODEL} D(IS=1e-12 N=1)`,
+  npn: `.model ${NPN_MODEL} NPN(BF=100)`,
+}
 
 const SWITCH_CLOSED_OHMS = '0.001'
 const SWITCH_OPEN_OHMS = '1e9'
@@ -64,7 +66,7 @@ export const toSpice = (
 
   const lines: string[] = ['e-block-nano circuit']
   const currentProbes: Record<string, string> = {}
-  const seq = { V: 0, R: 0, D: 0, C: 0 }
+  const seq = { V: 0, R: 0, D: 0, C: 0, Q: 0 }
 
   for (const e of netlist.elements) {
     emitElement(e, lines, currentProbes, seq, nodeName)
@@ -72,8 +74,9 @@ export const toSpice = (
 
   // 使われている素子種に応じてモデルを付ける
   const kinds = new Set(netlist.elements.map((e) => e.device.kind))
-  if (kinds.has('led')) lines.push(MODEL_LINES[0])
-  if (kinds.has('diode')) lines.push(MODEL_LINES[1])
+  if (kinds.has('led')) lines.push(MODEL_LINES.led)
+  if (kinds.has('diode')) lines.push(MODEL_LINES.diode)
+  if (kinds.has('transistor-npn')) lines.push(MODEL_LINES.npn)
 
   lines.push(
     analysis.kind === 'op'
@@ -84,7 +87,7 @@ export const toSpice = (
   return { text: lines.join('\n'), nodeNames, currentProbes }
 }
 
-type Seq = { V: number; R: number; D: number; C: number }
+type Seq = { V: number; R: number; D: number; C: number; Q: number }
 
 /** 1 素子を SPICE 行に足し、電流プローブを登録する */
 const emitElement = (
@@ -128,7 +131,12 @@ const emitElement = (
       probes[e.blockId] = `i(${meter.toLowerCase()})`
       return
     }
-    case 'transistor-npn':
-      throw new Error('transistor は SPICE 変換に未対応です')
+    case 'transistor-npn': {
+      // Q<k> collector base emitter <model>
+      lines.push(
+        `Q${++seq.Q} ${node('collector')} ${node('base')} ${node('emitter')} ${NPN_MODEL}`,
+      )
+      return
+    }
   }
 }
