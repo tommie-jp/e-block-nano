@@ -190,6 +190,7 @@ const LABELS: Record<string, string> = {
   'resistor-1k': '1kΩ',
   'resistor-10k': '10kΩ',
   'capacitor-100n': '0.1µ',
+  'capacitor-100u': '100µ',
   'led-red': 'LED',
   'diode-schottky': 'BAT43',
   'transistor-npn': 'NPN',

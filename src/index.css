@@ -336,6 +336,29 @@ body {
   background: #000;
 }
 
+.waveform {
+  width: 100%;
+  max-width: 600px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.wave-axis {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.wave-line {
+  fill: none;
+  stroke-width: 1.5;
+}
+
+.wave-label {
+  fill: var(--text-dim);
+  font-size: 11px;
+}
+
 /* --- モバイル (縦持ち) --- */
 @media (max-width: 700px) {
   .app {

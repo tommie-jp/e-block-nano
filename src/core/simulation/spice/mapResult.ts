@@ -12,6 +12,12 @@ export interface MappedResult {
   readonly elementCurrents: Record<string, number>
 }
 
+/** 過渡解析の時系列。time と、各 nodeId の電圧系列 */
+export interface Waveforms {
+  readonly time: number[]
+  readonly nodeVoltages: Record<string, number[]>
+}
+
 /**
  * ngspice の結果ベクトル (`v(n1)`, `i(vmd1)` …) を、うちの nodeId / blockId へ
  * 対応表 (SpiceNetlist) を使って戻す純関数。基準ノード '0' は 0V とする。
@@ -35,4 +41,28 @@ export const mapSpiceResult = (
   }
 
   return { nodeVoltages, elementCurrents }
+}
+
+/**
+ * 過渡解析(.tran)の結果を時系列へ戻す純関数。
+ * time ベクトルと、各 nodeId の電圧系列を対応表で紐付ける。
+ */
+export const mapSpiceWaveforms = (
+  result: SpiceRunResult,
+  spice: SpiceNetlist,
+): Waveforms => {
+  const seriesByName = new Map(result.data.map((d) => [d.name, d.values]))
+  const time = [...(seriesByName.get('time') ?? [])]
+
+  const nodeVoltages: Record<string, number[]> = {}
+  for (const [nodeId, spiceName] of Object.entries(spice.nodeNames)) {
+    if (spiceName === '0') {
+      nodeVoltages[nodeId] = time.map(() => 0)
+      continue
+    }
+    const series = seriesByName.get(`v(${spiceName})`)
+    if (series) nodeVoltages[nodeId] = [...series]
+  }
+
+  return { time, nodeVoltages }
 }

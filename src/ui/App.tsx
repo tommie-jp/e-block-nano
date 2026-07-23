@@ -17,6 +17,7 @@ import { getSample, SAMPLE_CIRCUITS } from '../fixtures/circuits/samples'
 import { BoardView } from './BoardView'
 import { PartsPalette } from './PartsPalette'
 import { SimulatorPanel } from './SimulatorPanel'
+import { WaveformPanel } from './WaveformPanel'
 
 const errorMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e)
@@ -241,6 +242,11 @@ export const App = (): ReactElement => {
           )}
           {editor.message && <p className="error">{editor.message}</p>}
           <SimulatorPanel netlist={netlist} hasError={hasError} />
+          <WaveformPanel
+            netlist={netlist}
+            hasError={hasError}
+            simulator={ngspice}
+          />
         </div>
       </main>
     </div>

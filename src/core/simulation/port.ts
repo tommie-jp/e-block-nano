@@ -1,22 +1,28 @@
 import type { Netlist } from '../netlist/build'
+import type { Waveforms } from './spice/mapResult'
+import type { Analysis } from './spice/serialize'
 
-/** シミュレーション結果。定量エンジンはノード電圧・素子電流を載せる */
+export type { Analysis }
+
+/** シミュレーション結果。定量エンジンはノード電圧・素子電流・波形を載せる */
 export interface SimulationResult {
   readonly status: 'ok' | 'not-implemented' | 'error'
   readonly summary: string
-  /** nodeId → 電圧 [V] */
+  /** nodeId → 電圧 [V] (動作点) */
   readonly nodeVoltages?: Readonly<Record<string, number>>
-  /** blockId → 電流 [A] (符号つき) */
+  /** blockId → 電流 [A] (符号つき, 動作点) */
   readonly elementCurrents?: Readonly<Record<string, number>>
+  /** 過渡解析の時系列 (.tran のときのみ) */
+  readonly waveforms?: Waveforms
 }
 
 /**
  * シミュレータ差し替え境界。
- * 将来 CircuitJS1 (見える化) / ngspice-wasm (定量) をこの port の裏に挿す。
- * 入力は Netlist 契約 (ネット + 素子) に固定する。
+ * CircuitJS1 (見える化) はライブビューで別、ここは定量エンジン (ngspice-wasm)。
+ * 入力は Netlist 契約 + 解析種別 (.op / .tran)。
  */
 export interface SimulationPort {
-  simulate(netlist: Netlist): Promise<SimulationResult>
+  simulate(netlist: Netlist, analysis?: Analysis): Promise<SimulationResult>
 }
 
 /** PoC 用スタブ。ネット数・素子数・基準ノード有無を数えて返すだけ */

@@ -44,6 +44,12 @@ export const PARTS: readonly Part[] = [
     device: { kind: 'capacitor', farads: 100e-9, pins: { a: 'N', b: 'S' } },
   },
   {
+    id: 'capacitor-100u',
+    name: '電解コンデンサ 100µF',
+    internalNets: [],
+    device: { kind: 'capacitor', farads: 100e-6, pins: { a: 'N', b: 'S' } },
+  },
+  {
     id: 'led-red',
     name: 'LED (赤)',
     internalNets: [],

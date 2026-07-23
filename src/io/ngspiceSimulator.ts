@@ -1,8 +1,15 @@
 import type { Simulation } from 'eecircuit-engine'
 import type { Netlist } from '../core/netlist/build'
-import type { SimulationPort, SimulationResult } from '../core/simulation/port'
+import type {
+  Analysis,
+  SimulationPort,
+  SimulationResult,
+} from '../core/simulation/port'
 import { describeResult } from '../core/simulation/spice/interpret'
-import { mapSpiceResult } from '../core/simulation/spice/mapResult'
+import {
+  mapSpiceResult,
+  mapSpiceWaveforms,
+} from '../core/simulation/spice/mapResult'
 import { toSpice } from '../core/simulation/spice/serialize'
 
 /**
@@ -29,10 +36,13 @@ export const createNgspiceSimulator = (): SimulationPort => {
   }
 
   return {
-    async simulate(netlist: Netlist): Promise<SimulationResult> {
+    async simulate(
+      netlist: Netlist,
+      analysis: Analysis = { kind: 'op' },
+    ): Promise<SimulationResult> {
       let spice
       try {
-        spice = toSpice(netlist)
+        spice = toSpice(netlist, analysis)
       } catch (e) {
         return {
           status: 'error',
@@ -46,7 +56,15 @@ export const createNgspiceSimulator = (): SimulationPort => {
         if (raw.dataType !== 'real') {
           return {
             status: 'error',
-            summary: 'ngspice が複素結果を返しました (.op のみ対応)',
+            summary: 'ngspice が複素結果を返しました',
+          }
+        }
+        if (analysis.kind === 'tran') {
+          const waveforms = mapSpiceWaveforms(raw, spice)
+          return {
+            status: 'ok',
+            summary: `過渡解析: ${waveforms.time.length} 点`,
+            waveforms,
           }
         }
         const { nodeVoltages, elementCurrents } = mapSpiceResult(raw, spice)

@@ -54,6 +54,15 @@ describe('toSpice', () => {
     expect(closedText).not.toContain('1e9')
   })
 
+  test('emits .op by default and .tran when requested', () => {
+    const netlist = fixtureNetlist()
+    expect(toSpice(netlist).text).toContain('.op')
+
+    const tran = toSpice(netlist, { kind: 'tran', step: 0.02, stop: 5 }).text
+    expect(tran).toContain('.tran 0.02 5 uic')
+    expect(tran).not.toContain('.op')
+  })
+
   test('throws when the circuit has no ground node', () => {
     const noBattery = placeBlock(createBoard(6, 8), 'resistor-1k', {
       row: 0,

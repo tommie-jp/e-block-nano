@@ -25,6 +25,11 @@ const MODEL_LINES = [
 const SWITCH_CLOSED_OHMS = '0.001'
 const SWITCH_OPEN_OHMS = '1e9'
 
+/** 解析カード。動作点 (.op) か過渡 (.tran)。過渡はコンデンサを 0 から充電 (uic) */
+export type Analysis =
+  | { readonly kind: 'op' }
+  | { readonly kind: 'tran'; readonly step: number; readonly stop: number }
+
 /** 変換結果。結果ベクトル名をうちの nodeId / blockId へ戻すための対応表つき */
 export interface SpiceNetlist {
   readonly text: string
@@ -38,7 +43,10 @@ export interface SpiceNetlist {
  * Netlist を SPICE netlist へ変換する。
  * groundNode が無い回路は変換しない (lint gating 済みだが境界で防御)。
  */
-export const toSpice = (netlist: Netlist): SpiceNetlist => {
+export const toSpice = (
+  netlist: Netlist,
+  analysis: Analysis = { kind: 'op' },
+): SpiceNetlist => {
   if (netlist.groundNode === null) {
     throw new Error('基準ノード (GND) が無いため変換できません')
   }
@@ -67,7 +75,12 @@ export const toSpice = (netlist: Netlist): SpiceNetlist => {
   if (kinds.has('led')) lines.push(MODEL_LINES[0])
   if (kinds.has('diode')) lines.push(MODEL_LINES[1])
 
-  lines.push('.op', '.end')
+  lines.push(
+    analysis.kind === 'op'
+      ? '.op'
+      : `.tran ${analysis.step} ${analysis.stop} uic`,
+    '.end',
+  )
   return { text: lines.join('\n'), nodeNames, currentProbes }
 }
 

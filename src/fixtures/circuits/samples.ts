@@ -1,6 +1,7 @@
 import batterySwitchResistorLed from './battery-switch-resistor-led.json'
 import voltageDivider from './voltage-divider.json'
 import parallelResistors from './parallel-resistors.json'
+import rcCharge from './rc-charge.json'
 
 /**
  * アプリ同梱のサンプル回路 (読み取り専用の教材・出発点)。
@@ -37,6 +38,13 @@ export const SAMPLE_CIRCUITS: readonly SampleCircuit[] = [
     description:
       '1kΩ と 10kΩ を電池に並列接続。合計電流 = 3mA + 0.3mA = 3.3mA。',
     data: parallelResistors,
+  },
+  {
+    id: 'rc-charge',
+    name: '03-RC充放電',
+    description:
+      '10kΩ + 100µF の直列。過渡解析でコンデンサが 3V へ充電される。時定数 τ=RC=1秒。',
+    data: rcCharge,
   },
 ]
 
