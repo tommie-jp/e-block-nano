@@ -13,6 +13,20 @@ export const createBoard = (rows: number, cols: number): Board => ({
   placements: [],
 })
 
+/**
+ * 検証済みの配置群から盤面を組み立てる (読み込み用)。
+ * blockId はモジュール連番で振り直し、以後の placeBlock との衝突を防ぐ。
+ */
+export const boardFromPlacements = (
+  rows: number,
+  cols: number,
+  placements: readonly Omit<Placement, 'blockId'>[],
+): Board => ({
+  rows,
+  cols,
+  placements: placements.map((p) => ({ ...p, blockId: newBlockId() })),
+})
+
 export const blockAt = (board: Board, cell: Cell): Placement | undefined =>
   board.placements.find((p) => isSameCell(p.cell, cell))
 

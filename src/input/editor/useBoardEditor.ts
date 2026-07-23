@@ -26,6 +26,10 @@ export interface BoardEditor {
   rotateBlockById: (blockId: string) => void
   toggleSelected: () => void
   removeSelected: () => void
+  /** 盤面をまるごと差し替える (読み込み時)。選択とメッセージをクリア */
+  replaceBoard: (board: Board) => void
+  /** 読み込み失敗などのメッセージを表面化する */
+  reportError: (message: string) => void
 }
 
 /**
@@ -99,6 +103,12 @@ export const useBoardEditor = (rows: number, cols: number): BoardEditor => {
     setSelectedBlockId(null)
   }, [apply, selectedBlockId])
 
+  const replaceBoard = useCallback((next: Board): void => {
+    setBoard(next)
+    setSelectedBlockId(null)
+    setMessage(null)
+  }, [])
+
   const selectedIsSwitch =
     selectedBlockId !== null && isSwitch(board, selectedBlockId)
 
@@ -116,5 +126,7 @@ export const useBoardEditor = (rows: number, cols: number): BoardEditor => {
     rotateBlockById,
     toggleSelected,
     removeSelected,
+    replaceBoard,
+    reportError: setMessage,
   }
 }

@@ -1,11 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { ReactElement } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ChangeEvent, ReactElement } from 'react'
 import { buildNetlist } from '../core/netlist/build'
 import type { SimulationResult } from '../core/simulation/port'
 import { stubSimulator } from '../core/simulation/port'
 import { useBoardEditor } from '../input/editor/useBoardEditor'
+import {
+  downloadBoard,
+  loadFromLocal,
+  readBoardFile,
+  saveToLocal,
+} from '../io/boardStorage'
 import { BoardView } from './BoardView'
 import { PartsPalette } from './PartsPalette'
+
+const errorMessage = (e: unknown): string =>
+  e instanceof Error ? e.message : String(e)
 
 const BOARD_ROWS = 6
 const BOARD_COLS = 8
@@ -13,6 +22,40 @@ const BOARD_COLS = 8
 export const App = (): ReactElement => {
   const editor = useBoardEditor(BOARD_ROWS, BOARD_COLS)
   const [simResult, setSimResult] = useState<SimulationResult | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleSave = (): void => {
+    try {
+      saveToLocal(editor.board)
+      editor.reportError('保存しました (ブラウザ内)')
+    } catch (e) {
+      editor.reportError(`保存失敗: ${errorMessage(e)}`)
+    }
+  }
+
+  const handleLoad = (): void => {
+    try {
+      const board = loadFromLocal()
+      if (!board) {
+        editor.reportError('保存データがありません')
+        return
+      }
+      editor.replaceBoard(board)
+    } catch (e) {
+      editor.reportError(`読込失敗: ${errorMessage(e)}`)
+    }
+  }
+
+  const handleImport = (e: ChangeEvent<HTMLInputElement>): void => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // 同じファイルを連続選択できるようにする
+    if (!file) return
+    readBoardFile(file)
+      .then((board) => editor.replaceBoard(board))
+      .catch((err: unknown) =>
+        editor.reportError(`インポート失敗: ${errorMessage(err)}`),
+      )
+  }
 
   const netlist = useMemo(() => buildNetlist(editor.board), [editor.board])
 
@@ -54,8 +97,29 @@ export const App = (): ReactElement => {
         <h1>e-block-nano PoC</h1>
         <p className="hint">
           パーツを選んでセルをクリックで配置 / ドラッグで移動 / クリックで選択 /
-          R キーか「回転」で回転 / Delete で削除
+          R で回転 / C でスイッチ切替 / Delete で削除
         </p>
+        <div className="file-actions">
+          <button type="button" onClick={handleSave}>
+            保存
+          </button>
+          <button type="button" onClick={handleLoad}>
+            読込
+          </button>
+          <button type="button" onClick={() => downloadBoard(editor.board)}>
+            エクスポート
+          </button>
+          <button type="button" onClick={() => fileInputRef.current?.click()}>
+            インポート
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={handleImport}
+          />
+        </div>
       </header>
       <main className="main">
         <PartsPalette
