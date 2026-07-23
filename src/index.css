@@ -1,0 +1,209 @@
+:root {
+  --bg: #1c1e24;
+  --panel: #262932;
+  --border: #3a3e4a;
+  --text: #e8e8ec;
+  --text-dim: #9aa0ae;
+  --accent: #4fc3f7;
+  --accent-dim: rgba(79, 195, 247, 0.15);
+  --block-fill: #f5f0e0;
+  --block-stroke: #5a5346;
+  --symbol: #2a2620;
+  --led-fill: rgba(255, 80, 80, 0.55);
+  --error: #ff7a7a;
+
+  font-family: system-ui, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 12px 16px;
+  gap: 10px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.header .hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.main {
+  display: flex;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* --- パレット --- */
+.palette {
+  width: 220px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.palette h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.palette-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.palette-item {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.palette-item svg {
+  width: 56px;
+  height: 56px;
+}
+
+.palette-item:hover {
+  border-color: var(--accent);
+}
+
+.palette-item.selected {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.palette-name {
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* --- ボード --- */
+.board-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.board {
+  width: 100%;
+  max-height: calc(100vh - 170px);
+  background: #20323e;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  touch-action: none;
+  user-select: none;
+}
+
+.grid-line {
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 1;
+}
+
+.cell-label {
+  font-size: 9px;
+  fill: rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+}
+
+.block {
+  cursor: grab;
+}
+
+.block.dragging {
+  cursor: grabbing;
+  opacity: 0.8;
+}
+
+.block-body {
+  fill: var(--block-fill);
+  stroke: var(--block-stroke);
+  stroke-width: 1.5;
+}
+
+.block-body.selected {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.glyph-line {
+  stroke: var(--symbol);
+  stroke-width: 2;
+  fill: none;
+  color: var(--symbol);
+}
+
+.block-label {
+  font-size: 9px;
+  fill: var(--symbol);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+/* --- ツールバー --- */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar button {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.toolbar button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.status {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--error);
+}
