@@ -37,10 +37,11 @@ export const App = (): ReactElement => {
     }
   }, [netlist])
 
-  // キーボード操作: R = 回転, Delete/Backspace = 削除
+  // キーボード操作: R = 回転, C = スイッチ切替, Delete/Backspace = 削除
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'r' || e.key === 'R') editor.rotateSelected()
+      if (e.key === 'c' || e.key === 'C') editor.toggleSelected()
       if (e.key === 'Delete' || e.key === 'Backspace') editor.removeSelected()
     }
     window.addEventListener('keydown', onKey)
@@ -76,6 +77,13 @@ export const App = (): ReactElement => {
               onClick={editor.rotateSelected}
             >
               回転 (R)
+            </button>
+            <button
+              type="button"
+              disabled={!editor.selectedIsSwitch}
+              onClick={editor.toggleSelected}
+            >
+              SW 切替 (C)
             </button>
             <button
               type="button"

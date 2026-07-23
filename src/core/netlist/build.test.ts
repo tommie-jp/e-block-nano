@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'vitest'
-import { createBoard, placeBlock, rotateBlock } from '../grid/board'
+import {
+  createBoard,
+  placeBlock,
+  rotateBlock,
+  toggleSwitch,
+} from '../grid/board'
 import { buildNetlist } from './build'
 
 describe('buildNetlist nets', () => {
@@ -109,6 +114,23 @@ describe('buildNetlist elements', () => {
     })
 
     expect(buildNetlist(board).groundNode).toBeNull()
+  })
+
+  test('a switch element carries its closed state, pins stay distinct', () => {
+    let board = placeBlock(createBoard(6, 8), 'switch', { row: 0, col: 0 })
+    const id = board.placements[0].blockId
+
+    // 既定 (開): state は無く、両ピンは別ノード (トポロジは状態非依存)
+    const open = buildNetlist(board).elements[0]
+    expect(open.device.kind).toBe('switch')
+    expect(open.state?.closed ?? false).toBe(false)
+    expect(open.pinNodes.a).not.toBe(open.pinNodes.b)
+
+    // 閉じても union はせず、closed 状態だけが Element に載る
+    board = toggleSwitch(board, id)
+    const closed = buildNetlist(board).elements[0]
+    expect(closed.state?.closed).toBe(true)
+    expect(closed.pinNodes.a).not.toBe(closed.pinNodes.b)
   })
 
   test('transistor pins map through orientation', () => {

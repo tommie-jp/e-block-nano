@@ -1,7 +1,12 @@
 import { getPart } from '../parts/catalog'
 import type { Direction, DeviceSpec } from '../parts/types'
 import { devicePins, rotateDirection } from '../parts/types'
-import type { Board, Cell, Orientation } from '../grid/types'
+import type {
+  Board,
+  Cell,
+  Orientation,
+  PlacementState,
+} from '../grid/types'
 
 /** ブロック端子 1 点。terminal は方位 (ワイヤ) か素子ピンの役割名 */
 export interface Terminal {
@@ -21,6 +26,11 @@ export interface Element {
   readonly device: DeviceSpec
   /** ピン役割名 → nodeId */
   readonly pinNodes: Readonly<Record<string, string>>
+  /**
+   * 配置インスタンス状態 (スイッチ開閉など)。省略時はデバイス既定
+   * (スイッチは開)。シミュレータ / circuit lint が解釈する。
+   */
+  readonly state?: PlacementState
 }
 
 /**
@@ -84,6 +94,7 @@ interface PendingElement {
   readonly blockId: string
   readonly device: DeviceSpec
   readonly pinKeys: Readonly<Record<string, string>>
+  readonly state?: PlacementState
 }
 
 /**
@@ -123,7 +134,12 @@ export const buildNetlist = (board: Board): Netlist => {
         addTerminal(key, { blockId: p.blockId, terminal: role })
         pinKeys[role] = key
       }
-      pending.push({ blockId: p.blockId, device: part.device, pinKeys })
+      pending.push({
+        blockId: p.blockId,
+        device: part.device,
+        pinKeys,
+        state: p.state,
+      })
     }
   }
 
@@ -143,6 +159,7 @@ export const buildNetlist = (board: Board): Netlist => {
     pinNodes: Object.fromEntries(
       Object.entries(e.pinKeys).map(([role, key]) => [role, uf.find(key)]),
     ),
+    ...(e.state ? { state: e.state } : {}),
   }))
 
   // 最初の電池のマイナス端子を基準ノード (0V) とする

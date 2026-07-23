@@ -180,6 +180,7 @@ export const BoardView = ({
               part={getPart(p.partId)}
               orientation={p.orientation}
               selected={p.blockId === selectedBlockId}
+              closed={p.state?.closed ?? false}
             />
           </g>
         )

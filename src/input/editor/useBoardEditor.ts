@@ -2,10 +2,12 @@ import { useCallback, useMemo, useState } from 'react'
 import {
   blockAt,
   createBoard,
+  isSwitch,
   moveBlock,
   placeBlock,
   removeBlock,
   rotateBlock,
+  toggleSwitch,
 } from '../../core/grid/board'
 import type { Board, Cell } from '../../core/grid/types'
 
@@ -13,6 +15,8 @@ export interface BoardEditor {
   board: Board
   selectedPartId: string | null
   selectedBlockId: string | null
+  /** 選択中ブロックがスイッチか (トグル操作の可否) */
+  selectedIsSwitch: boolean
   message: string | null
   selectPart: (partId: string | null) => void
   selectBlock: (blockId: string | null) => void
@@ -20,6 +24,7 @@ export interface BoardEditor {
   handleBlockMove: (blockId: string, to: Cell) => void
   rotateSelected: () => void
   rotateBlockById: (blockId: string) => void
+  toggleSelected: () => void
   removeSelected: () => void
 }
 
@@ -84,16 +89,24 @@ export const useBoardEditor = (rows: number, cols: number): BoardEditor => {
     if (selectedBlockId) rotateBlockById(selectedBlockId)
   }, [rotateBlockById, selectedBlockId])
 
+  const toggleSelected = useCallback((): void => {
+    if (selectedBlockId) apply((b) => toggleSwitch(b, selectedBlockId))
+  }, [apply, selectedBlockId])
+
   const removeSelected = useCallback((): void => {
     if (!selectedBlockId) return
     apply((b) => removeBlock(b, selectedBlockId))
     setSelectedBlockId(null)
   }, [apply, selectedBlockId])
 
+  const selectedIsSwitch =
+    selectedBlockId !== null && isSwitch(board, selectedBlockId)
+
   return {
     board,
     selectedPartId,
     selectedBlockId,
+    selectedIsSwitch,
     message,
     selectPart: setSelectedPartId,
     selectBlock: setSelectedBlockId,
@@ -101,6 +114,7 @@ export const useBoardEditor = (rows: number, cols: number): BoardEditor => {
     handleBlockMove,
     rotateSelected,
     rotateBlockById,
+    toggleSelected,
     removeSelected,
   }
 }

@@ -1,3 +1,4 @@
+import { getPart } from '../parts/catalog'
 import type { Board, Cell, Placement } from './types'
 import { isInside, isSameCell } from './types'
 
@@ -67,3 +68,16 @@ export const removeBlock = (board: Board, blockId: string): Board => ({
   ...board,
   placements: board.placements.filter((p) => p.blockId !== blockId),
 })
+
+/** スイッチの開閉を反転する (スイッチ以外のブロックは無変更) */
+export const toggleSwitch = (board: Board, blockId: string): Board =>
+  updatePlacement(board, blockId, (p) => {
+    if (getPart(p.partId).device?.kind !== 'switch') return p
+    return { ...p, state: { ...p.state, closed: !(p.state?.closed ?? false) } }
+  })
+
+/** ブロックがスイッチか判定 (UI がトグル可否を出すため) */
+export const isSwitch = (board: Board, blockId: string): boolean => {
+  const p = board.placements.find((pl) => pl.blockId === blockId)
+  return p !== undefined && getPart(p.partId).device?.kind === 'switch'
+}

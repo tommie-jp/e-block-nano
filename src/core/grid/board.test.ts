@@ -2,10 +2,12 @@ import { describe, expect, test } from 'vitest'
 import {
   blockAt,
   createBoard,
+  isSwitch,
   moveBlock,
   placeBlock,
   removeBlock,
   rotateBlock,
+  toggleSwitch,
 } from './board'
 
 describe('board operations (immutable)', () => {
@@ -85,5 +87,40 @@ describe('board operations (immutable)', () => {
 
     expect(blockAt(board, { row: 2, col: 5 })?.partId).toBe('wire-i')
     expect(blockAt(board, { row: 0, col: 0 })).toBeUndefined()
+  })
+
+  test('toggles a switch open <-> closed without mutating the original', () => {
+    const board = placeBlock(createBoard(6, 8), 'switch', { row: 0, col: 0 })
+    const id = board.placements[0].blockId
+    expect(board.placements[0].state?.closed ?? false).toBe(false)
+
+    const closed = toggleSwitch(board, id)
+    expect(closed.placements[0].state?.closed).toBe(true)
+    expect(board.placements[0].state?.closed ?? false).toBe(false)
+
+    const reopened = toggleSwitch(closed, id)
+    expect(reopened.placements[0].state?.closed).toBe(false)
+  })
+
+  test('toggling a non-switch block is a no-op', () => {
+    const board = placeBlock(createBoard(6, 8), 'resistor-1k', {
+      row: 0,
+      col: 0,
+    })
+    const id = board.placements[0].blockId
+
+    const next = toggleSwitch(board, id)
+
+    expect(next.placements[0].state).toBeUndefined()
+  })
+
+  test('isSwitch reports switch blocks only', () => {
+    let board = placeBlock(createBoard(6, 8), 'switch', { row: 0, col: 0 })
+    board = placeBlock(board, 'resistor-1k', { row: 0, col: 1 })
+    const [sw, res] = board.placements.map((p) => p.blockId)
+
+    expect(isSwitch(board, sw)).toBe(true)
+    expect(isSwitch(board, res)).toBe(false)
+    expect(isSwitch(board, 'nope')).toBe(false)
   })
 })

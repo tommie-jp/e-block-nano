@@ -62,8 +62,10 @@ const WireSymbol = ({ part }: { part: Part }): ReactElement => (
 /** N-S 2 端子部品の記号 (向き 0 で縦方向) */
 const TwoTerminalSymbol = ({
   device,
+  closed,
 }: {
   device: DeviceSpec
+  closed: boolean
 }): ReactElement => {
   const body = (() => {
     switch (device.kind) {
@@ -107,7 +109,12 @@ const TwoTerminalSymbol = ({
         return (
           <g className="glyph-line">
             <line x1={C} y1={STUB_LEN} x2={C} y2={C - 10} />
-            <line x1={C} y1={C - 10} x2={C + 12} y2={C + 8} />
+            {/* 閉=接点を結ぶ縦線 / 開=斜めに離れたレバー */}
+            {closed ? (
+              <line x1={C} y1={C - 10} x2={C} y2={C + 10} />
+            ) : (
+              <line x1={C} y1={C - 10} x2={C + 12} y2={C + 8} />
+            )}
             <line x1={C} y1={C + 10} x2={C} y2={CELL_SIZE - STUB_LEN} />
             <circle cx={C} cy={C - 10} r={2} fill="currentColor" />
             <circle cx={C} cy={C + 10} r={2} fill="currentColor" />
@@ -153,10 +160,10 @@ const TransistorSymbol = (): ReactElement => (
   </g>
 )
 
-const symbolFor = (part: Part): ReactElement => {
+const symbolFor = (part: Part, closed: boolean): ReactElement => {
   if (!part.device) return <WireSymbol part={part} />
   if (part.device.kind === 'transistor-npn') return <TransistorSymbol />
-  return <TwoTerminalSymbol device={part.device} />
+  return <TwoTerminalSymbol device={part.device} closed={closed} />
 }
 
 /** 部品につける短い値ラベル */
@@ -174,6 +181,8 @@ interface BlockGlyphProps {
   part: Part
   orientation: Orientation
   selected?: boolean
+  /** スイッチが閉じているか (スイッチ以外は無視) */
+  closed?: boolean
 }
 
 /**
@@ -184,6 +193,7 @@ export const BlockGlyph = ({
   part,
   orientation,
   selected = false,
+  closed = false,
 }: BlockGlyphProps): ReactElement => {
   const label = LABELS[part.id]
   return (
@@ -196,7 +206,9 @@ export const BlockGlyph = ({
         rx={6}
         className={selected ? 'block-body selected' : 'block-body'}
       />
-      <g transform={`rotate(${orientation}, ${C}, ${C})`}>{symbolFor(part)}</g>
+      <g transform={`rotate(${orientation}, ${C}, ${C})`}>
+        {symbolFor(part, closed)}
+      </g>
       {label && (
         <text x={C} y={CELL_SIZE - EDGE_INSET - 3} className="block-label">
           {label}
