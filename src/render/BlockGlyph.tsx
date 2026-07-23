@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import type { Orientation } from '../core/grid/types'
-import type { Direction, Part } from '../core/parts/types'
+import type { Direction, DeviceSpec, Part } from '../core/parts/types'
+import { devicePins } from '../core/parts/types'
 import { CELL_SIZE } from './constants'
 
 const C = CELL_SIZE / 2 // 中心座標
@@ -59,9 +60,13 @@ const WireSymbol = ({ part }: { part: Part }): ReactElement => (
 )
 
 /** N-S 2 端子部品の記号 (向き 0 で縦方向) */
-const TwoTerminalSymbol = ({ part }: { part: Part }): ReactElement => {
+const TwoTerminalSymbol = ({
+  device,
+}: {
+  device: DeviceSpec
+}): ReactElement => {
   const body = (() => {
-    switch (part.kind) {
+    switch (device.kind) {
       case 'resistor':
         return (
           <polyline
@@ -86,11 +91,11 @@ const TwoTerminalSymbol = ({ part }: { part: Part }): ReactElement => {
             <line x1={C} y1={STUB_LEN} x2={C} y2={C - 8} />
             <polygon
               points={`${C - 9},${C - 8} ${C + 9},${C - 8} ${C},${C + 8}`}
-              fill={part.kind === 'led' ? 'var(--led-fill)' : 'none'}
+              fill={device.kind === 'led' ? 'var(--led-fill)' : 'none'}
             />
             <line x1={C - 9} y1={C + 8} x2={C + 9} y2={C + 8} />
             <line x1={C} y1={C + 8} x2={C} y2={CELL_SIZE - STUB_LEN} />
-            {part.kind === 'led' && (
+            {device.kind === 'led' && (
               <g>
                 <line x1={C + 10} y1={C - 12} x2={C + 16} y2={C - 18} />
                 <line x1={C + 14} y1={C - 6} x2={C + 20} y2={C - 12} />
@@ -123,8 +128,8 @@ const TwoTerminalSymbol = ({ part }: { part: Part }): ReactElement => {
   })()
   return (
     <g>
-      {part.internalNets.flat().map((dir) => (
-        <Stub key={dir} dir={dir} />
+      {devicePins(device).map(([role, dir]) => (
+        <Stub key={role} dir={dir} />
       ))}
       {body}
     </g>
@@ -149,9 +154,9 @@ const TransistorSymbol = (): ReactElement => (
 )
 
 const symbolFor = (part: Part): ReactElement => {
-  if (part.kind === 'wire') return <WireSymbol part={part} />
-  if (part.kind === 'transistor-npn') return <TransistorSymbol />
-  return <TwoTerminalSymbol part={part} />
+  if (!part.device) return <WireSymbol part={part} />
+  if (part.device.kind === 'transistor-npn') return <TransistorSymbol />
+  return <TwoTerminalSymbol device={part.device} />
 }
 
 /** 部品につける短い値ラベル */

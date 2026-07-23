@@ -1,4 +1,4 @@
-import type { Net } from '../netlist/build'
+import type { Netlist } from '../netlist/build'
 
 /** シミュレーション結果 (PoC ではサマリのみ)。将来は波形・ノード電圧が入る */
 export interface SimulationResult {
@@ -9,16 +9,17 @@ export interface SimulationResult {
 /**
  * シミュレータ差し替え境界。
  * 将来 CircuitJS1 (見える化) / ngspice-wasm (定量) をこの port の裏に挿す。
+ * 入力は Netlist 契約 (ネット + 素子) に固定する。
  */
 export interface SimulationPort {
-  simulate(nets: readonly Net[]): Promise<SimulationResult>
+  simulate(netlist: Netlist): Promise<SimulationResult>
 }
 
-/** PoC 用スタブ。ネット数を数えて返すだけ */
+/** PoC 用スタブ。ネット数・素子数を数えて返すだけ */
 export const stubSimulator: SimulationPort = {
-  simulate: (nets) =>
+  simulate: (netlist) =>
     Promise.resolve({
       status: 'not-implemented',
-      summary: `ネット数: ${nets.length} (シミュレーションは未実装)`,
+      summary: `ネット ${netlist.nets.length} / 素子 ${netlist.elements.length} (シミュレーション未実装)`,
     }),
 }

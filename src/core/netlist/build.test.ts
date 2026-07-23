@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import { createBoard, placeBlock, rotateBlock } from '../grid/board'
-import { buildNets } from './build'
+import { buildNetlist } from './build'
 
-describe('buildNets', () => {
-  test('returns no nets for an empty board', () => {
-    expect(buildNets(createBoard(6, 8))).toHaveLength(0)
+describe('buildNetlist nets', () => {
+  test('returns no nets or elements for an empty board', () => {
+    const nl = buildNetlist(createBoard(6, 8))
+    expect(nl.nets).toHaveLength(0)
+    expect(nl.elements).toHaveLength(0)
   })
 
   test('joins two vertically adjacent straight wires into one net', () => {
@@ -14,7 +16,7 @@ describe('buildNets', () => {
     board = placeBlock(board, 'wire-i', { row: 1, col: 0 })
 
     // Act
-    const nets = buildNets(board)
+    const { nets } = buildNetlist(board)
 
     // Assert: N(0,0)–[共有辺]–S(1,0) が 1 ネットに繋がる
     const joined = nets.find((n) => n.terminals.length === 4)
@@ -22,17 +24,16 @@ describe('buildNets', () => {
   })
 
   test('does not join blocks that only touch at unconnected edges', () => {
-    // wire-i (N-S) を横に並べても E/W は端子ではないので繋がらない
     let board = createBoard(6, 8)
     board = placeBlock(board, 'wire-i', { row: 0, col: 0 })
     board = placeBlock(board, 'wire-i', { row: 0, col: 1 })
 
-    const nets = buildNets(board)
+    const { nets } = buildNetlist(board)
 
     expect(nets.every((n) => n.terminals.length <= 2)).toBe(true)
   })
 
-  test('respects block orientation', () => {
+  test('respects block orientation for wires', () => {
     // wire-i (N-S) を 90° 回すと E-W 導通になり、横並びで繋がる
     let board = createBoard(6, 8)
     board = placeBlock(board, 'wire-i', { row: 0, col: 0 })
@@ -41,22 +42,65 @@ describe('buildNets', () => {
     board = rotateBlock(board, a)
     board = rotateBlock(board, b)
 
-    const nets = buildNets(board)
+    const { nets } = buildNetlist(board)
 
     const joined = nets.find((n) => n.terminals.length === 4)
     expect(joined).toBeDefined()
   })
+})
 
-  test('keeps separated terminals of a transistor in different nets', () => {
-    const board = placeBlock(createBoard(6, 8), 'transistor-npn', {
-      row: 0,
-      col: 0,
+describe('buildNetlist elements', () => {
+  test('a resistor is a device whose two pins are distinct nodes (not shorted)', () => {
+    const board = placeBlock(createBoard(6, 8), 'resistor-1k', {
+      row: 2,
+      col: 2,
     })
 
-    const nets = buildNets(board)
+    const { nets, elements } = buildNetlist(board)
 
-    // N / E / S は内部で導通しない → 3 つの独立ネット
-    expect(nets).toHaveLength(3)
+    expect(elements).toHaveLength(1)
+    const [r] = elements
+    expect(r.device.kind).toBe('resistor')
+    // 両端が別ノード = 導線として潰れていない
+    expect(r.pinNodes.a).not.toBe(r.pinNodes.b)
+    // 何にも繋がっていないので 2 つの独立ネット (各 1 端子)
+    expect(nets).toHaveLength(2)
     expect(nets.every((n) => n.terminals.length === 1)).toBe(true)
+  })
+
+  test('a device pin shares a node with an adjacent wire terminal', () => {
+    // wire-i(0,0) の S辺(H:1,0) と resistor(1,0) の a=N辺(H:1,0) が同一辺
+    let board = createBoard(6, 8)
+    board = placeBlock(board, 'wire-i', { row: 0, col: 0 })
+    board = placeBlock(board, 'resistor-1k', { row: 1, col: 0 })
+    const wireId = board.placements[0].blockId
+
+    const { nets, elements } = buildNetlist(board)
+    const [r] = elements
+
+    // resistor.a が繋がるノードに、wire の端子も同居している
+    const sharedNet = nets.find((n) => n.nodeId === r.pinNodes.a)
+    expect(sharedNet).toBeDefined()
+    expect(sharedNet?.terminals.some((t) => t.blockId === wireId)).toBe(true)
+    // b 側は誰とも繋がらない別ノード
+    expect(r.pinNodes.b).not.toBe(r.pinNodes.a)
+  })
+
+  test('transistor pins map through orientation', () => {
+    // 向き 0: collector=N, base=E, emitter=S
+    let board = placeBlock(createBoard(6, 8), 'transistor-npn', {
+      row: 2,
+      col: 2,
+    })
+    const base = buildNetlist(board).elements[0]
+    expect(base.device.kind).toBe('transistor-npn')
+    const baseNodes = new Set(Object.values(base.pinNodes))
+    expect(baseNodes.size).toBe(3)
+
+    // 90° 回転で各ピンの実辺が時計回りに 1 段ずれる → 節点集合が変わる
+    board = rotateBlock(board, board.placements[0].blockId)
+    const rotated = buildNetlist(board).elements[0]
+    expect(new Set(Object.values(rotated.pinNodes)).size).toBe(3)
+    expect(rotated.pinNodes.collector).not.toBe(base.pinNodes.collector)
   })
 })

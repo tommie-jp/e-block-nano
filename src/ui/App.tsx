@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactElement } from 'react'
-import { buildNets } from '../core/netlist/build'
+import { buildNetlist } from '../core/netlist/build'
 import type { SimulationResult } from '../core/simulation/port'
 import { stubSimulator } from '../core/simulation/port'
 import { useBoardEditor } from '../input/editor/useBoardEditor'
@@ -14,13 +14,13 @@ export const App = (): ReactElement => {
   const editor = useBoardEditor(BOARD_ROWS, BOARD_COLS)
   const [simResult, setSimResult] = useState<SimulationResult | null>(null)
 
-  const nets = useMemo(() => buildNets(editor.board), [editor.board])
+  const netlist = useMemo(() => buildNetlist(editor.board), [editor.board])
 
   // 配置が変わるたびにスタブへ流す (将来 CircuitJS1/ngspice-wasm に差し替え)
   useEffect(() => {
     let cancelled = false
     stubSimulator
-      .simulate(nets)
+      .simulate(netlist)
       .then((r) => {
         if (!cancelled) setSimResult(r)
       })
@@ -35,7 +35,7 @@ export const App = (): ReactElement => {
     return () => {
       cancelled = true
     }
-  }, [nets])
+  }, [netlist])
 
   // キーボード操作: R = 回転, Delete/Backspace = 削除
   useEffect(() => {
@@ -85,7 +85,8 @@ export const App = (): ReactElement => {
               削除 (Del)
             </button>
             <span className="status">
-              ブロック: {editor.board.placements.length} / ネット: {nets.length}
+              ブロック: {editor.board.placements.length} / ネット:{' '}
+              {netlist.nets.length} / 素子: {netlist.elements.length}
               {simResult && ` — ${simResult.summary}`}
             </span>
           </div>
