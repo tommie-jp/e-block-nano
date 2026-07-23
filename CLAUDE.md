@@ -45,3 +45,17 @@ shared edge becomes a circuit node. `core/netlist/build.ts` assigns each block t
 board-global edge key (after applying the block's orientation), then union-finds them via each
 part's internal wiring groups. Orientation comes from the block's rotation; a part definition only
 encodes the part type and its internal connectivity.
+
+## Camera recognition (in scope; pipeline not yet implemented)
+
+The end goal is recognizing a **physical** board from one photo: corner ArUco markers →
+homography rectify → per-cell AprilTag decode → the same `Placement` list the editor produces.
+The method is documented in [docs/recognition-pipeline.md](docs/recognition-pipeline.md) —
+that document doubles as a defensive publication of the approach; keep it accurate and dated.
+
+- `tools/paper-proto-gen/` — Python/OpenCV generator that renders synthetic top-down "photos"
+  of a paper prototype from a board JSON file, plus ground-truth sidecars. Tags are drawn
+  bit-exactly with `cv2.aruco` (never with generative image models). Its
+  `tag_assignment.json` is the canonical part-ID ↔ tag-ID mapping shared with the future
+  recognition implementation. Setup/usage in its own README; needs a local venv
+  (`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`).

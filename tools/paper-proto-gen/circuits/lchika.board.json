@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "rows": 8,
+  "cols": 8,
+  "placements": [
+    { "partId": "wire-l",      "cell": { "row": 3, "col": 2 }, "orientation": 90 },
+    { "partId": "battery-3v",  "cell": { "row": 3, "col": 3 }, "orientation": 90 },
+    { "partId": "resistor-1k", "cell": { "row": 3, "col": 4 }, "orientation": 90 },
+    { "partId": "wire-l",      "cell": { "row": 3, "col": 5 }, "orientation": 180 },
+    { "partId": "wire-l",      "cell": { "row": 4, "col": 5 }, "orientation": 270 },
+    { "partId": "led-red",     "cell": { "row": 4, "col": 4 }, "orientation": 90 },
+    { "partId": "switch",      "cell": { "row": 4, "col": 3 }, "orientation": 90, "state": { "closed": true } },
+    { "partId": "wire-l",      "cell": { "row": 4, "col": 2 }, "orientation": 0 }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "schema": "e-block-nano/tag-assignment@1",
+  "note": "部品ID ↔ タグID の正準割当。認識パイプラインと生成スクリプトで共有する。タグIDは部品種のみを表し、向きはタグの回転から復元する (docs/recognition-pipeline.md)。",
+  "cellDictionary": "DICT_APRILTAG_36h11",
+  "cornerDictionary": "DICT_4X4_250",
+  "cornerMarkerIds": {
+    "TL": 0,
+    "TR": 1,
+    "BR": 2,
+    "BL": 3
+  },
+  "parts": {
+    "wire-i": 0,
+    "wire-l": 1,
+    "wire-t": 2,
+    "wire-x": 3,
+    "resistor-1k": 4,
+    "capacitor-100n": 5,
+    "led-red": 6,
+    "diode-schottky": 7,
+    "transistor-npn": 8,
+    "switch": 9,
+    "battery-3v": 10
+  }
+}
