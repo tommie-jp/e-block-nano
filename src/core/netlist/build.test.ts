@@ -86,6 +86,31 @@ describe('buildNetlist elements', () => {
     expect(r.pinNodes.b).not.toBe(r.pinNodes.a)
   })
 
+  test('ground node is the first battery minus terminal', () => {
+    const board = placeBlock(createBoard(6, 8), 'battery-3v', {
+      row: 2,
+      col: 2,
+    })
+
+    const { elements, groundNode, nets } = buildNetlist(board)
+    const battery = elements.find((e) => e.device.kind === 'battery')
+
+    expect(groundNode).toBe(battery?.pinNodes.minus)
+    // 基準ノードは実在するネットの nodeId を指す
+    expect(nets.some((n) => n.nodeId === groundNode)).toBe(true)
+    // 電池の plus/minus は別ノード
+    expect(battery?.pinNodes.plus).not.toBe(groundNode)
+  })
+
+  test('ground node is null without a battery', () => {
+    const board = placeBlock(createBoard(6, 8), 'resistor-1k', {
+      row: 0,
+      col: 0,
+    })
+
+    expect(buildNetlist(board).groundNode).toBeNull()
+  })
+
   test('transistor pins map through orientation', () => {
     // 向き 0: collector=N, base=E, emitter=S
     let board = placeBlock(createBoard(6, 8), 'transistor-npn', {

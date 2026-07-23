@@ -15,11 +15,11 @@ export interface SimulationPort {
   simulate(netlist: Netlist): Promise<SimulationResult>
 }
 
-/** PoC 用スタブ。ネット数・素子数を数えて返すだけ */
+/** PoC 用スタブ。ネット数・素子数・基準ノード有無を数えて返すだけ */
 export const stubSimulator: SimulationPort = {
   simulate: (netlist) =>
     Promise.resolve({
       status: 'not-implemented',
-      summary: `ネット ${netlist.nets.length} / 素子 ${netlist.elements.length} (シミュレーション未実装)`,
+      summary: `ネット ${netlist.nets.length} / 素子 ${netlist.elements.length} / GND ${netlist.groundNode ? 'あり' : 'なし'} (シミュレーション未実装)`,
     }),
 }

@@ -30,6 +30,11 @@ export interface Element {
 export interface Netlist {
   readonly nets: readonly Net[]
   readonly elements: readonly Element[]
+  /**
+   * 基準ノード (SPICE の node 0)。最初の電池のマイナス端子ノードを 0V とする規約。
+   * 電池が無ければ null (シミュレーション不能。将来の circuit lint が検出する)。
+   */
+  readonly groundNode: string | null
 }
 
 /**
@@ -140,5 +145,9 @@ export const buildNetlist = (board: Board): Netlist => {
     ),
   }))
 
-  return { nets, elements }
+  // 最初の電池のマイナス端子を基準ノード (0V) とする
+  const battery = elements.find((e) => e.device.kind === 'battery')
+  const groundNode = battery ? battery.pinNodes.minus : null
+
+  return { nets, elements, groundNode }
 }
