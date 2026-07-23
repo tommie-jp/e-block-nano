@@ -52,7 +52,7 @@ export const createNgspiceSimulator = (): SimulationPort => {
         const { nodeVoltages, elementCurrents } = mapSpiceResult(raw, spice)
         return {
           status: 'ok',
-          summary: describeResult(netlist, elementCurrents),
+          summary: describeResult(netlist, elementCurrents, nodeVoltages),
           nodeVoltages,
           elementCurrents,
         }

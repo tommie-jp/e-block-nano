@@ -188,6 +188,7 @@ const symbolFor = (
 /** 部品につける短い値ラベル */
 const LABELS: Record<string, string> = {
   'resistor-1k': '1kΩ',
+  'resistor-10k': '10kΩ',
   'capacitor-100n': '0.1µ',
   'led-red': 'LED',
   'diode-schottky': 'BAT43',

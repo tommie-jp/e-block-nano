@@ -11,7 +11,7 @@ import { getSample, SAMPLE_CIRCUITS } from './circuits/samples'
 describe('SAMPLE_CIRCUITS registry', () => {
   test('is non-empty and includes the Lチカ sample', () => {
     expect(SAMPLE_CIRCUITS.length).toBeGreaterThan(0)
-    expect(getSample('led-blink')?.name).toBe('Lチカ')
+    expect(getSample('led-blink')?.name).toBe('00-Lチカ')
     expect(getSample('nope')).toBeUndefined()
   })
 
@@ -23,6 +23,15 @@ describe('SAMPLE_CIRCUITS registry', () => {
       expect(s.name).not.toBe('')
       expect(s.description).not.toBe('')
     }
+  })
+
+  test('every sample name is numbered NN- with a unique number', () => {
+    const numbers = SAMPLE_CIRCUITS.map((s) => {
+      const m = /^(\d{2})-/.exec(s.name)
+      expect(m, `${s.name} should start with NN-`).not.toBeNull()
+      return m![1]
+    })
+    expect(new Set(numbers).size).toBe(numbers.length)
   })
 
   test('every sample deserializes under the v1 schema', () => {
