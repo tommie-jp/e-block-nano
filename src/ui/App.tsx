@@ -11,6 +11,8 @@ import {
   readBoardFile,
   saveToLocal,
 } from '../io/boardStorage'
+import { deserializeBoard } from '../core/persistence/boardFile'
+import { getSample, SAMPLE_CIRCUITS } from '../fixtures/circuits/samples'
 import { BoardView } from './BoardView'
 import { PartsPalette } from './PartsPalette'
 import { SimulatorPanel } from './SimulatorPanel'
@@ -57,6 +59,26 @@ export const App = (): ReactElement => {
       .catch((err: unknown) =>
         editor.reportError(`インポート失敗: ${errorMessage(err)}`),
       )
+  }
+
+  const handleSampleSelect = (e: ChangeEvent<HTMLSelectElement>): void => {
+    const id = e.target.value
+    e.target.value = '' // プレースホルダに戻し、同じサンプルを連続選択できるように
+    const sample = getSample(id)
+    if (!sample) return
+    // 盤面が空でなければ上書き確認 (サンプルは既存配置を置き換えるため)
+    if (
+      editor.board.placements.length > 0 &&
+      !window.confirm('現在の配置を破棄してサンプルを読み込みますか?')
+    ) {
+      return
+    }
+    try {
+      editor.replaceBoard(deserializeBoard(JSON.stringify(sample.data)))
+      editor.reportError(`サンプル「${sample.name}」を読み込みました`)
+    } catch (err) {
+      editor.reportError(`サンプル読込失敗: ${errorMessage(err)}`)
+    }
   }
 
   const netlist = useMemo(() => buildNetlist(editor.board), [editor.board])
@@ -128,6 +150,21 @@ export const App = (): ReactElement => {
             hidden
             onChange={handleImport}
           />
+          <select
+            className="sample-select"
+            defaultValue=""
+            onChange={handleSampleSelect}
+            aria-label="サンプル回路を読み込む"
+          >
+            <option value="" disabled>
+              サンプル回路…
+            </option>
+            {SAMPLE_CIRCUITS.map((s) => (
+              <option key={s.id} value={s.id} title={s.description}>
+                {s.name}
+              </option>
+            ))}
+          </select>
         </div>
       </header>
       <main className="main">
