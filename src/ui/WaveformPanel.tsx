@@ -18,18 +18,33 @@ const TRAN_STEP = 0.02
 const TRAN_STOP = 5
 
 const SERIES_COLORS = ['#4fc3f7', '#ff8a65', '#81c784', '#ba68c8', '#fff176']
+// 描画点の上限。過渡は適応ステップで数万点になる (マルチバイブレータ ~5万点)
+const MAX_POINTS = 1000
 
 /** 波形を単純な折れ線 SVG にする */
 const Chart = ({ waveforms }: { waveforms: Waveforms }): ReactElement => {
   const { time, nodeVoltages } = waveforms
   const maxT = time.at(-1) || 1
   const series = Object.entries(nodeVoltages).filter(([, v]) => v.some((x) => x !== 0))
-  const maxV = Math.max(
-    1,
-    ...series.flatMap(([, v]) => v.map((x) => Math.abs(x))),
-  )
+  // 大きな配列を spread すると stack overflow するのでループで最大値を取る
+  let maxV = 1
+  for (const [, v] of series) {
+    for (const val of v) {
+      const a = Math.abs(val)
+      if (a > maxV) maxV = a
+    }
+  }
   const x = (t: number): number => PAD + (t / maxT) * (W - 2 * PAD)
   const y = (v: number): number => H - PAD - (v / maxV) * (H - 2 * PAD)
+  // 点数が多い過渡は描画用に間引く (1 ピクセル 1〜2 点で十分)
+  const stride = Math.max(1, Math.ceil(time.length / MAX_POINTS))
+  const pointsFor = (values: number[]): string => {
+    const parts: string[] = []
+    for (let j = 0; j < values.length; j += stride) {
+      parts.push(`${x(time[j])},${y(values[j])}`)
+    }
+    return parts.join(' ')
+  }
 
   return (
     <svg className="waveform" viewBox={`0 0 ${W} ${H}`} role="img">
@@ -39,7 +54,7 @@ const Chart = ({ waveforms }: { waveforms: Waveforms }): ReactElement => {
           key={nodeId}
           className="wave-line"
           stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
-          points={values.map((v, j) => `${x(time[j])},${y(v)}`).join(' ')}
+          points={pointsFor(values)}
         />
       ))}
       <text x={PAD + 2} y={12} className="wave-label">
