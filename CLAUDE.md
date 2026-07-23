@@ -36,7 +36,12 @@ npm run build                   # tsc -b && vite build
   one shared `Netlist` contract + per-engine serializer. Format is verified against the real engine;
   the LED line must be `162 ... 0 cr cg cb mbc` (flags=0, no model name) or CircuitJS drops it.
 - `ui/SimulatorPanel.tsx` embeds CircuitJS1 in an iframe (gated by lint errors). Engine base URL is
-  `VITE_CIRCUITJS_BASE` (default self-hosted `/circuitjs/`). `public/circuitjs/` is GPLv2, gitignored.
+  `VITE_CIRCUITJS_BASE` (default self-hosted `/circuitjs/`, fetched via `npm run fetch:circuitjs`).
+  `public/circuitjs/` is GPLv2, gitignored. Same-origin (default) uses the **JS-API live connection**
+  (`ui/useCircuitJsLive.ts` + `io/circuitjsApi.ts`): the iframe loads once, netlist changes go through
+  `importCircuit` (no reload), and `onupdate` telemetry maps element currents back to blocks via
+  `serializeCircuitJs().blockIds` (getElements() returns elements in import line order — verified).
+  Cross-origin bases fall back to `?cct=` URL reloads with no telemetry.
 
 ## Netlist model
 

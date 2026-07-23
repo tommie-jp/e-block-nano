@@ -53,21 +53,31 @@ src/
 
 ## 回路シミュレーション (CircuitJS1)
 
-ネットリストを **CircuitJS1 (Falstad)** の回路テキストへ変換し、iframe に埋め込んで
+ネットリストを **CircuitJS1 (Falstad)** の回路テキストへ変換し、iframe で
 電流をリアルタイム表示する。変換器は `core/simulation/circuitjs/`(純関数)にあり、
-`?cct=` クエリで回路を渡す方式なのでクロスオリジンでも動く。lint に error がある間は
-実行しない(`SimulatorPanel`)。
+lint に error がある間は実行しない(`SimulatorPanel`)。
 
-エンジンの配置は 2 通り:
+エンジンの配置は 2 通りで、接続方式が変わる:
 
-- **自前ホスト(既定)**: CircuitJS1 のビルドを `public/circuitjs/` に置く
-  (`circuitjs.html` が入口)。`public/circuitjs/` は GPLv2 のため **コミットしない**
-  (`.gitignore` 済み)。オフライン/PWA 向け。
-- **外部エンジンを指す**: `VITE_CIRCUITJS_BASE` で URL を差し替える。例:
+- **自前ホスト(既定)= ライブ接続**: 同一オリジンなので CircuitJS1 の
+  **JavaScript インターフェース**が使える(`ui/useCircuitJsLive.ts`)。iframe は
+  一度だけロードし、netlist の変化(スイッチ開閉・ブロック編集・サンプル切替)は
+  `importCircuit` で無再ロード反映。`onupdate` テレメトリで素子電流
+  (blockId 対応表は `serializeCircuitJs` が出力)を吸い上げ、盤面の LED ブロックが
+  実電流でリアルタイム発光する。API 仕様は自前ホスト内 `doc/js-interface.html` 参照。
+- **外部エンジンを指す = 再ロード方式**: `VITE_CIRCUITJS_BASE` で URL を差し替える。
+  クロスオリジンでは JS API に触れないため、従来どおり `?cct=` クエリの
+  URL 再ロードで反映する(テレメトリなし)。例:
 
   ```bash
   VITE_CIRCUITJS_BASE="https://www.falstad.com/circuit/circuitjs.html" npm run dev
   ```
+
+自前ホストのエンジン取得(falstad.com のオフライン版から `war/` を抽出して配置):
+
+```bash
+npm run fetch:circuitjs   # → public/circuitjs/ (GPLv2 のためコミットしない)
+```
 
 ### ライセンス上の注意(重要)
 

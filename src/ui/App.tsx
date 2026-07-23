@@ -17,6 +17,7 @@ import { getSample, SAMPLE_CIRCUITS } from '../fixtures/circuits/samples'
 import { BoardView } from './BoardView'
 import { PartsPalette } from './PartsPalette'
 import { SimulatorPanel } from './SimulatorPanel'
+import type { LiveCurrents } from './useCircuitJsLive'
 import { WaveformPanel } from './WaveformPanel'
 
 const errorMessage = (e: unknown): string =>
@@ -28,6 +29,7 @@ const BOARD_COLS = 8
 export const App = (): ReactElement => {
   const editor = useBoardEditor(BOARD_ROWS, BOARD_COLS)
   const [simResult, setSimResult] = useState<SimulationResult | null>(null)
+  const [liveCurrents, setLiveCurrents] = useState<LiveCurrents | null>(null)
   const [ngspiceOn, setNgspiceOn] = useState(false)
   const [simulating, setSimulating] = useState(false)
   const ngspice = useMemo(() => createNgspiceSimulator(), [])
@@ -189,7 +191,12 @@ export const App = (): ReactElement => {
             onCellClick={editor.handleCellClick}
             onBlockMove={editor.handleBlockMove}
             onBlockDoubleClick={editor.rotateBlockById}
-            elementCurrents={ngspiceOn ? simResult?.elementCurrents : undefined}
+            elementCurrents={
+              // CircuitJS ライブビュー表示中はライブ電流を優先し、
+              // それ以外は ngspice の動作点電流 (ON のときのみ)
+              liveCurrents ??
+              (ngspiceOn ? simResult?.elementCurrents : undefined)
+            }
           />
           <div className="toolbar">
             <button
@@ -241,7 +248,11 @@ export const App = (): ReactElement => {
             </ul>
           )}
           {editor.message && <p className="error">{editor.message}</p>}
-          <SimulatorPanel netlist={netlist} hasError={hasError} />
+          <SimulatorPanel
+            netlist={netlist}
+            hasError={hasError}
+            onCurrents={setLiveCurrents}
+          />
           <WaveformPanel
             netlist={netlist}
             hasError={hasError}

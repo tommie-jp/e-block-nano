@@ -5,7 +5,7 @@ import {
   toggleSwitch,
 } from '../../grid/board'
 import { buildNetlist } from '../../netlist/build'
-import { toCircuitJs } from './serialize'
+import { serializeCircuitJs, toCircuitJs } from './serialize'
 import fixture from '../../../fixtures/circuits/battery-switch-resistor-led.json'
 import { deserializeBoard } from '../../persistence/boardFile'
 
@@ -93,5 +93,35 @@ describe('toCircuitJs', () => {
       col: 0,
     })
     expect(() => toCircuitJs(buildNetlist(noBattery))).toThrow(/GND/)
+  })
+})
+
+describe('serializeCircuitJs (blockIds 対応表)', () => {
+  test('blockIds aligns with element lines in emission order', () => {
+    const netlist = fixtureNetlist()
+    const { text, blockIds } = serializeCircuitJs(netlist)
+
+    // 行構成: ヘッダ 1 行 + 素子 N 行 + 接地 1 行
+    const lines = text.split('\n')
+    expect(lines).toHaveLength(1 + netlist.elements.length + 1)
+    expect(blockIds).toHaveLength(netlist.elements.length)
+
+    // i 番目の素子行の型が、blockIds[i] の素子種別と一致する
+    const typeOf = new Map<string, string>([
+      ['battery', 'v'],
+      ['resistor', 'r'],
+      ['switch', 's'],
+      ['led', '162'],
+    ])
+    const elementLines = lines.slice(1, 1 + netlist.elements.length)
+    blockIds.forEach((blockId, i) => {
+      const element = netlist.elements.find((e) => e.blockId === blockId)!
+      expect(elementLines[i].split(' ')[0]).toBe(typeOf.get(element.device.kind))
+    })
+  })
+
+  test('text matches toCircuitJs output', () => {
+    const netlist = fixtureNetlist()
+    expect(serializeCircuitJs(netlist).text).toBe(toCircuitJs(netlist))
   })
 })

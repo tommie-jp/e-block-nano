@@ -81,11 +81,22 @@ const elementLine = (e: Element): string => {
 /** 標準的なシミュレーションヘッダ (flags timeStep ...)。パラメータは版に寛容 */
 const HEADER = '$ 1 0.000005 10.20027730826997 50 5 50'
 
+/** 回路テキストと、素子行 (=getElements() の並び) → blockId の対応表 */
+export interface CircuitJsSerialization {
+  readonly text: string
+  /**
+   * i 番目の素子行に対応する blockId。CircuitJS1 は importCircuit した行順で
+   * getElements() を返すため、インデックスがそのまま照合キーになる
+   * (実機で確認済み)。末尾の接地行は素子ではないので含まない。
+   */
+  readonly blockIds: readonly string[]
+}
+
 /**
- * Netlist を CircuitJS1 のインポート用テキストへ変換する。
+ * Netlist を CircuitJS1 のインポート用テキスト + blockId 対応表へ変換する。
  * groundNode が無い回路は変換しない (lint gating 済みだが境界で防御)。
  */
-export const toCircuitJs = (netlist: Netlist): string => {
+export const serializeCircuitJs = (netlist: Netlist): CircuitJsSerialization => {
   if (netlist.groundNode === null) {
     throw new Error('基準ノード (GND) が無いため変換できません')
   }
@@ -96,5 +107,12 @@ export const toCircuitJs = (netlist: Netlist): string => {
     // 接地: point1 を GND ノードに、point2 は記号の足 (少し下)
     elmLine('g', groundAt, { x: groundAt.x, y: groundAt.y + HALF }, 0, []),
   ]
-  return lines.join('\n')
+  return {
+    text: lines.join('\n'),
+    blockIds: netlist.elements.map((e) => e.blockId),
+  }
 }
+
+/** Netlist → CircuitJS1 テキストのみ (従来 API 互換) */
+export const toCircuitJs = (netlist: Netlist): string =>
+  serializeCircuitJs(netlist).text
