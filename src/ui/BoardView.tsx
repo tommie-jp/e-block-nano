@@ -1,19 +1,27 @@
 import { useCallback, useRef, useState } from 'react'
 import type { PointerEvent, ReactElement } from 'react'
+import { isInside } from '../core/grid/types'
 import type { Board, Cell, Placement } from '../core/grid/types'
 import { getPart } from '../core/parts/catalog'
 import { BlockGlyph } from '../render/BlockGlyph'
 import { CELL_SIZE } from '../render/constants'
 
-const DRAG_THRESHOLD_PX = 5 // これ未満はクリック (選択) 扱い
+// これ未満はクリック (選択) 扱い。指はマウスより不正確なので大きめ
+const DRAG_THRESHOLD_MOUSE_PX = 5
+const DRAG_THRESHOLD_TOUCH_PX = 12
+
+const CELL_CENTER = CELL_SIZE / 2
 
 interface DragState {
   blockId: string
+  originCol: number
+  originRow: number
   startX: number
   startY: number
   dx: number
   dy: number
   moved: boolean
+  isTouch: boolean
 }
 
 interface BoardViewProps {
@@ -54,17 +62,30 @@ export const BoardView = ({
     [],
   )
 
+  /** ドラッグ中のブロック中心が今いるセル (着地先) */
+  const dropCellFromDrag = useCallback(
+    (d: DragState): Cell =>
+      cellFromPoint(
+        d.originCol * CELL_SIZE + d.dx + CELL_CENTER,
+        d.originRow * CELL_SIZE + d.dy + CELL_CENTER,
+      ),
+    [cellFromPoint],
+  )
+
   const handleBlockPointerDown = (e: PointerEvent, p: Placement): void => {
     e.stopPropagation()
     const pt = toSvgPoint(e)
     svgRef.current?.setPointerCapture(e.pointerId)
     setDrag({
       blockId: p.blockId,
+      originCol: p.cell.col,
+      originRow: p.cell.row,
       startX: pt.x,
       startY: pt.y,
       dx: 0,
       dy: 0,
       moved: false,
+      isTouch: e.pointerType === 'touch',
     })
   }
 
@@ -73,15 +94,18 @@ export const BoardView = ({
     const pt = toSvgPoint(e)
     const dx = pt.x - drag.startX
     const dy = pt.y - drag.startY
-    const moved = drag.moved || Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX
+    const threshold = drag.isTouch
+      ? DRAG_THRESHOLD_TOUCH_PX
+      : DRAG_THRESHOLD_MOUSE_PX
+    const moved = drag.moved || Math.hypot(dx, dy) >= threshold
     setDrag({ ...drag, dx, dy, moved })
   }
 
-  const handlePointerUp = (e: PointerEvent): void => {
+  const handlePointerUp = (): void => {
     if (!drag) return
-    const pt = toSvgPoint(e)
     if (drag.moved) {
-      onBlockMove(drag.blockId, cellFromPoint(pt.x, pt.y))
+      // 指で隠れる指位置ではなく、見えているブロック中心を着地先にする
+      onBlockMove(drag.blockId, dropCellFromDrag(drag))
     } else {
       // クリック扱い → 選択トグルはセルクリックに委譲
       onCellClick(cellFromPoint(drag.startX, drag.startY))
@@ -124,6 +148,21 @@ export const BoardView = ({
           </text>
         )),
       )}
+      {/* ドラッグ中の着地先ハイライト (指でブロックが隠れても位置が分かる) */}
+      {drag?.moved &&
+        (() => {
+          const target = dropCellFromDrag(drag)
+          if (!isInside(board, target)) return null
+          return (
+            <rect
+              className="drop-target"
+              x={target.col * CELL_SIZE}
+              y={target.row * CELL_SIZE}
+              width={CELL_SIZE}
+              height={CELL_SIZE}
+            />
+          )
+        })()}
       {/* ブロック */}
       {board.placements.map((p) => {
         const isDragging = drag?.moved && drag.blockId === p.blockId

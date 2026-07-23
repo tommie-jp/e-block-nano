@@ -24,13 +24,19 @@
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .app {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   padding: 12px 16px;
+  /* ノッチ端末のセーフエリアを尊重 (viewport-fit=cover 前提) */
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
   gap: 10px;
 }
 
@@ -85,6 +91,8 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  /* ダブルタップズームを抑止 */
+  touch-action: manipulation;
 }
 
 .palette-item svg {
@@ -92,8 +100,10 @@ body {
   height: 56px;
 }
 
-.palette-item:hover {
-  border-color: var(--accent);
+@media (hover: hover) {
+  .palette-item:hover {
+    border-color: var(--accent);
+  }
 }
 
 .palette-item.selected {
@@ -134,6 +144,14 @@ body {
 .cell-label {
   font-size: 9px;
   fill: rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+}
+
+.drop-target {
+  fill: var(--accent-dim);
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
   pointer-events: none;
 }
 
@@ -184,12 +202,17 @@ body {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 6px 14px;
+  /* 指で押しやすい最小タップターゲット (WCAG 2.5.5) */
+  min-height: 44px;
   cursor: pointer;
   font-size: 13px;
+  touch-action: manipulation;
 }
 
-.toolbar button:hover:not(:disabled) {
-  border-color: var(--accent);
+@media (hover: hover) {
+  .toolbar button:hover:not(:disabled) {
+    border-color: var(--accent);
+  }
 }
 
 .toolbar button:disabled {
@@ -206,4 +229,60 @@ body {
   margin: 0;
   font-size: 12px;
   color: var(--error);
+}
+
+/* --- モバイル (縦持ち) --- */
+@media (max-width: 700px) {
+  .app {
+    padding-top: max(8px, env(safe-area-inset-top));
+    gap: 8px;
+  }
+
+  .header h1 {
+    font-size: 17px;
+  }
+
+  /* パレットをボードの下に回し、横並びの 1 行ストリップにする */
+  .main {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .board-area {
+    order: 1;
+    flex: 1;
+  }
+
+  .palette {
+    order: 2;
+    width: 100%;
+    flex: 0 0 auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .palette h2 {
+    display: none;
+  }
+
+  .palette-grid {
+    display: flex;
+    grid-template-columns: none;
+    gap: 8px;
+  }
+
+  .palette-item {
+    flex: 0 0 auto;
+    width: 72px;
+  }
+
+  /* 盤面はビュー高さの半分程度に抑え、下のパレットを常に見せる */
+  .board {
+    max-height: 52dvh;
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+  }
 }
