@@ -13,6 +13,7 @@ import {
 } from '../io/boardStorage'
 import { BoardView } from './BoardView'
 import { PartsPalette } from './PartsPalette'
+import { SimulatorPanel } from './SimulatorPanel'
 
 const errorMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e)
@@ -182,6 +183,7 @@ export const App = (): ReactElement => {
             </ul>
           )}
           {editor.message && <p className="error">{editor.message}</p>}
+          <SimulatorPanel netlist={netlist} hasError={hasError} />
         </div>
       </main>
     </div>

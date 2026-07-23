@@ -51,6 +51,31 @@ src/
   この境界を守れば `core/` に影響しない。
 - シミュレータは `core/simulation/port.ts` の `SimulationPort` を実装して差し込む。
 
+## 回路シミュレーション (CircuitJS1)
+
+ネットリストを **CircuitJS1 (Falstad)** の回路テキストへ変換し、iframe に埋め込んで
+電流をリアルタイム表示する。変換器は `core/simulation/circuitjs/`(純関数)にあり、
+`?cct=` クエリで回路を渡す方式なのでクロスオリジンでも動く。lint に error がある間は
+実行しない(`SimulatorPanel`)。
+
+エンジンの配置は 2 通り:
+
+- **自前ホスト(既定)**: CircuitJS1 のビルドを `public/circuitjs/` に置く
+  (`circuitjs.html` が入口)。`public/circuitjs/` は GPLv2 のため **コミットしない**
+  (`.gitignore` 済み)。オフライン/PWA 向け。
+- **外部エンジンを指す**: `VITE_CIRCUITJS_BASE` で URL を差し替える。例:
+
+  ```bash
+  VITE_CIRCUITJS_BASE="https://www.falstad.com/circuit/circuitjs.html" npm run dev
+  ```
+
+### ライセンス上の注意(重要)
+
+CircuitJS1 は **GPLv2**。iframe 埋め込みは集約(mere aggregation)なので本アプリ
+(MIT)本体には伝播しないが、**エンジンを同梱して配布する場合は GPLv2 全文の同梱と
+ソース入手先(upstream: pfalstad/circuitjs1 系)の明示が必要**。`?cct=` で外部の
+公開インスタンスを指す運用ならエンジンを配布しないため同梱義務は生じない。
+
 ## ステータス
 
 PoC。単体テストは緑、lint・ビルドとも通る。次の候補はシミュレータ実装 (スタブの置換) と
@@ -58,4 +83,5 @@ PoC。単体テストは緑、lint・ビルドとも通る。次の候補はシ�
 
 ## ライセンス
 
-（未定）
+本アプリのソースは MIT (`LICENSE`)。埋め込む CircuitJS1 は GPLv2 で別ライセンス
+(上記「ライセンス上の注意」参照)。

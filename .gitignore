@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# CircuitJS1 engine (GPLv2, fetched separately, not committed)
+public/circuitjs/
+
+# Playwright MCP artifacts
+.playwright-mcp/
