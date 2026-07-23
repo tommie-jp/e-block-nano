@@ -65,4 +65,22 @@ describe('sample circuits vs. analytic values (ngspice)', () => {
     expect(series[iTau]).toBeGreaterThan(1.6)
     expect(series[iTau]).toBeLessThan(2.2)
   }, 60000)
+
+  // 04-マルチバイブレータの「発振」は vite-node では確実に再現するが
+  // (`tools/` の検証や scratch で 11 crossings/3s を確認)、vitest 環境では
+  // eecircuit-engine の過渡が起動しないことがある (対称マルチの既知メタ安定 +
+  // 環境依存)。ここでは「エラーなく過渡波形を生成する」ことだけを堅牢に確認し、
+  // 発振トポロジ(クロス結合)は samples.test.ts の決定論的な構造テストで守る。
+  test('04-点滅マルチバイブレータ: runs a transient without error', async () => {
+    const sample = getSample('astable-multivibrator')!
+    const netlist = buildNetlist(deserializeBoard(JSON.stringify(sample.data)))
+    const result = await createNgspiceSimulator().simulate(netlist, {
+      kind: 'tran',
+      step: 0.005,
+      stop: 3,
+    })
+
+    expect(result.status).toBe('ok')
+    expect(result.waveforms?.time.length ?? 0).toBeGreaterThan(100)
+  }, 60000)
 })

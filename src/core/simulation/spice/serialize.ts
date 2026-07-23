@@ -78,12 +78,21 @@ export const toSpice = (
   if (kinds.has('diode')) lines.push(MODEL_LINES.diode)
   if (kinds.has('transistor-npn')) lines.push(MODEL_LINES.npn)
 
-  lines.push(
-    analysis.kind === 'op'
-      ? '.op'
-      : `.tran ${analysis.step} ${analysis.stop} uic`,
-    '.end',
-  )
+  if (analysis.kind === 'op') {
+    lines.push('.op')
+  } else {
+    // 過渡: 対称なマルチバイブレータは起動しない (メタ安定) ため、最初の
+    // トランジスタを明確に ON (ベース高・コレクタ低) に固定した初期条件から
+    // 始めて確実に発振させる。
+    const npn = netlist.elements.find((e) => e.device.kind === 'transistor-npn')
+    if (npn) {
+      lines.push(
+        `.ic v(${nodeNames[npn.pinNodes.base]})=0.7 v(${nodeNames[npn.pinNodes.collector]})=0.1`,
+      )
+    }
+    lines.push(`.tran ${analysis.step} ${analysis.stop} uic`)
+  }
+  lines.push('.end')
   return { text: lines.join('\n'), nodeNames, currentProbes }
 }
 

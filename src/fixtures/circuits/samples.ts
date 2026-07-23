@@ -2,6 +2,7 @@ import batterySwitchResistorLed from './battery-switch-resistor-led.json'
 import voltageDivider from './voltage-divider.json'
 import parallelResistors from './parallel-resistors.json'
 import rcCharge from './rc-charge.json'
+import astableMultivibrator from './astable-multivibrator.json'
 
 /**
  * アプリ同梱のサンプル回路 (読み取り専用の教材・出発点)。
@@ -45,6 +46,14 @@ export const SAMPLE_CIRCUITS: readonly SampleCircuit[] = [
     description:
       '10kΩ + 100µF の直列。過渡解析でコンデンサが 3V へ充電される。時定数 τ=RC=1秒。',
     data: rcCharge,
+  },
+  {
+    id: 'astable-multivibrator',
+    name: '04-点滅マルチバイブレータ',
+    description:
+      'NPN×2 + コンデンサ×2 の無安定マルチバイブレータ。コレクタ電圧が 0V↔3V を' +
+      '交互に発振(約 1.4Hz)。波形パネル(過渡解析)で点滅が見える。立体交差配線でクロス結合。',
+    data: astableMultivibrator,
   },
 ]
 
