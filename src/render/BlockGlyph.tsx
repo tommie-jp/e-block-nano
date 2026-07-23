@@ -60,6 +60,15 @@ const WireSymbol = ({ part }: { part: Part }): ReactElement => (
   </g>
 )
 
+/** 立体交差配線: N-S は直線、E-W は中央に隙間 (橋) を空けて交差非導通を表す */
+const CrossoverSymbol = (): ReactElement => (
+  <g className="glyph-line">
+    <line x1={C} y1={0} x2={C} y2={CELL_SIZE} />
+    <line x1={0} y1={C} x2={C - 6} y2={C} />
+    <line x1={C + 6} y1={C} x2={CELL_SIZE} y2={C} />
+  </g>
+)
+
 /** N-S 2 端子部品の記号 (向き 0 で縦方向) */
 const TwoTerminalSymbol = ({
   device,
@@ -178,7 +187,14 @@ const symbolFor = (
   closed: boolean,
   current?: number,
 ): ReactElement => {
-  if (!part.device) return <WireSymbol part={part} />
+  if (!part.device) {
+    // 複数グループ = 立体交差 (N-S と E-W が別ノード)
+    return part.internalNets.length > 1 ? (
+      <CrossoverSymbol />
+    ) : (
+      <WireSymbol part={part} />
+    )
+  }
   if (part.device.kind === 'transistor-npn') return <TransistorSymbol />
   return (
     <TwoTerminalSymbol device={part.device} closed={closed} current={current} />

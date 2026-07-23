@@ -38,6 +38,24 @@ describe('buildNetlist nets', () => {
     expect(nets.every((n) => n.terminals.length <= 2)).toBe(true)
   })
 
+  test('crossover wire keeps N-S and E-W as separate nodes', () => {
+    // 立体交差: 縦の隣接と横の隣接がそれぞれ別ネットで、互いに繋がらない
+    let board = createBoard(6, 8)
+    board = placeBlock(board, 'wire-cross', { row: 1, col: 1 })
+    board = placeBlock(board, 'wire-i', { row: 0, col: 1 }) // 上 (N側, 縦)
+    board = placeBlock(board, 'wire-i', { row: 2, col: 1 }) // 下 (S側, 縦)
+    const ew = placeBlock(board, 'wire-i', { row: 1, col: 0 }) // 左 (W側)
+    board = rotateBlock(ew, ew.placements.at(-1)!.blockId) // 横向きに
+
+    const { nets } = buildNetlist(board)
+    // 縦のネット(上-交差-下, 端子6)と横のネット(左-交差, 端子4)が別々に存在
+    const vertical = nets.find((n) => n.terminals.length === 6)
+    const horizontal = nets.find((n) => n.terminals.length === 4)
+    expect(vertical).toBeDefined()
+    expect(horizontal).toBeDefined()
+    expect(vertical?.nodeId).not.toBe(horizontal?.nodeId)
+  })
+
   test('respects block orientation for wires', () => {
     // wire-i (N-S) を 90° 回すと E-W 導通になり、横並びで繋がる
     let board = createBoard(6, 8)

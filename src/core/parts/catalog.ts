@@ -26,6 +26,15 @@ export const PARTS: readonly Part[] = [
     internalNets: [['N', 'E', 'S', 'W']],
   },
   {
+    id: 'wire-cross',
+    name: '配線 (立体交差)',
+    // N-S と E-W を別グループにして交差させる (互いに導通しないブリッジ)
+    internalNets: [
+      ['N', 'S'],
+      ['E', 'W'],
+    ],
+  },
+  {
     id: 'resistor-1k',
     name: '抵抗 1kΩ',
     internalNets: [],
