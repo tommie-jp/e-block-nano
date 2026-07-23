@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, ReactElement } from 'react'
+import { lintCircuit } from '../core/lint/lintCircuit'
 import { buildNetlist } from '../core/netlist/build'
 import type { SimulationResult } from '../core/simulation/port'
 import { stubSimulator } from '../core/simulation/port'
@@ -58,9 +59,16 @@ export const App = (): ReactElement => {
   }
 
   const netlist = useMemo(() => buildNetlist(editor.board), [editor.board])
+  const findings = useMemo(() => lintCircuit(netlist), [netlist])
+  const hasError = findings.some((f) => f.severity === 'error')
 
-  // 配置が変わるたびにスタブへ流す (将来 CircuitJS1/ngspice-wasm に差し替え)
+  // error がなければスタブへ流す (将来 CircuitJS1/ngspice-wasm に差し替え)。
+  // error 時はシミュレータを呼ばず、lint を直せば動く状態にする gating。
   useEffect(() => {
+    if (hasError) {
+      setSimResult(null)
+      return
+    }
     let cancelled = false
     stubSimulator
       .simulate(netlist)
@@ -78,7 +86,7 @@ export const App = (): ReactElement => {
     return () => {
       cancelled = true
     }
-  }, [netlist])
+  }, [netlist, hasError])
 
   // キーボード操作: R = 回転, C = スイッチ切替, Delete/Backspace = 削除
   useEffect(() => {
@@ -159,9 +167,20 @@ export const App = (): ReactElement => {
             <span className="status">
               ブロック: {editor.board.placements.length} / ネット:{' '}
               {netlist.nets.length} / 素子: {netlist.elements.length}
-              {simResult && ` — ${simResult.summary}`}
+              {hasError
+                ? ' — ⚠ 回路を修正してください'
+                : simResult && ` — ${simResult.summary}`}
             </span>
           </div>
+          {findings.length > 0 && (
+            <ul className="findings">
+              {findings.map((f, i) => (
+                <li key={`${f.code}-${i}`} className={`finding ${f.severity}`}>
+                  {f.severity === 'error' ? '⛔' : '⚠'} {f.message}
+                </li>
+              ))}
+            </ul>
+          )}
           {editor.message && <p className="error">{editor.message}</p>}
         </div>
       </main>
