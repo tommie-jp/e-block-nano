@@ -28,9 +28,15 @@ npm run build                   # tsc -b && vite build
   concerns into `core/`.
 - `render/` — SVG block glyphs.
 - `ui/` — React components (palette, board view, app shell).
-- `core/simulation/port.ts` — `SimulationPort` is the seam where a real simulator (e.g. Falstad
-  CircuitJS1 for visualization, ngspice-wasm for quantitative analysis) plugs in later. Keep the
-  `Netlist` contract stable; don't bypass the port from UI code.
+- `core/simulation/port.ts` — `SimulationPort` is the seam for a **batch/quantitative** engine
+  (ngspice-wasm) later; still a stub. Keep the `Netlist` contract stable.
+- `core/simulation/circuitjs/` — pure `Netlist → CircuitJS1` serializer (`serialize.ts`) and the
+  `?cct=` embed-URL builder (`url.ts`). This is the **live-view** engine and deliberately does NOT
+  go through `SimulationPort` (an iframe is a display, not a request/response call). Two engines,
+  one shared `Netlist` contract + per-engine serializer. Format is verified against the real engine;
+  the LED line must be `162 ... 0 cr cg cb mbc` (flags=0, no model name) or CircuitJS drops it.
+- `ui/SimulatorPanel.tsx` embeds CircuitJS1 in an iframe (gated by lint errors). Engine base URL is
+  `VITE_CIRCUITJS_BASE` (default self-hosted `/circuitjs/`). `public/circuitjs/` is GPLv2, gitignored.
 
 ## Netlist model
 
