@@ -2,6 +2,7 @@ import type { ReactElement } from 'react'
 import type { Orientation } from '../core/grid/types'
 import type { Direction, DeviceSpec, Part } from '../core/parts/types'
 import { devicePins } from '../core/parts/types'
+import { isLit } from '../core/simulation/spice/interpret'
 import { CELL_SIZE } from './constants'
 
 const C = CELL_SIZE / 2 // 中心座標
@@ -63,10 +64,13 @@ const WireSymbol = ({ part }: { part: Part }): ReactElement => (
 const TwoTerminalSymbol = ({
   device,
   closed,
+  current,
 }: {
   device: DeviceSpec
   closed: boolean
+  current?: number
 }): ReactElement => {
+  const ledLit = device.kind === 'led' && isLit(current)
   const body = (() => {
     switch (device.kind) {
       case 'resistor':
@@ -91,9 +95,18 @@ const TwoTerminalSymbol = ({
         return (
           <g className="glyph-line">
             <line x1={C} y1={STUB_LEN} x2={C} y2={C - 8} />
+            {ledLit && (
+              <circle cx={C} cy={C} r={16} fill="#ff4d4d" opacity={0.5} />
+            )}
             <polygon
               points={`${C - 9},${C - 8} ${C + 9},${C - 8} ${C},${C + 8}`}
-              fill={device.kind === 'led' ? 'var(--led-fill)' : 'none'}
+              fill={
+                device.kind !== 'led'
+                  ? 'none'
+                  : ledLit
+                    ? '#ff3b3b'
+                    : 'var(--led-fill)'
+              }
             />
             <line x1={C - 9} y1={C + 8} x2={C + 9} y2={C + 8} />
             <line x1={C} y1={C + 8} x2={C} y2={CELL_SIZE - STUB_LEN} />
@@ -160,10 +173,16 @@ const TransistorSymbol = (): ReactElement => (
   </g>
 )
 
-const symbolFor = (part: Part, closed: boolean): ReactElement => {
+const symbolFor = (
+  part: Part,
+  closed: boolean,
+  current?: number,
+): ReactElement => {
   if (!part.device) return <WireSymbol part={part} />
   if (part.device.kind === 'transistor-npn') return <TransistorSymbol />
-  return <TwoTerminalSymbol device={part.device} closed={closed} />
+  return (
+    <TwoTerminalSymbol device={part.device} closed={closed} current={current} />
+  )
 }
 
 /** 部品につける短い値ラベル */
@@ -183,6 +202,8 @@ interface BlockGlyphProps {
   selected?: boolean
   /** スイッチが閉じているか (スイッチ以外は無視) */
   closed?: boolean
+  /** 素子電流 [A] (LED の点灯表現に使う)。未計算なら undefined */
+  current?: number
 }
 
 /**
@@ -194,6 +215,7 @@ export const BlockGlyph = ({
   orientation,
   selected = false,
   closed = false,
+  current,
 }: BlockGlyphProps): ReactElement => {
   const label = LABELS[part.id]
   return (
@@ -207,7 +229,7 @@ export const BlockGlyph = ({
         className={selected ? 'block-body selected' : 'block-body'}
       />
       <g transform={`rotate(${orientation}, ${C}, ${C})`}>
-        {symbolFor(part, closed)}
+        {symbolFor(part, closed, current)}
       </g>
       {label && (
         <text x={C} y={CELL_SIZE - EDGE_INSET - 3} className="block-label">

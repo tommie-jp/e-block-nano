@@ -11,6 +11,7 @@ import {
   readBoardFile,
   saveToLocal,
 } from '../io/boardStorage'
+import { createNgspiceSimulator } from '../io/ngspiceSimulator'
 import { deserializeBoard } from '../core/persistence/boardFile'
 import { getSample, SAMPLE_CIRCUITS } from '../fixtures/circuits/samples'
 import { BoardView } from './BoardView'
@@ -26,6 +27,9 @@ const BOARD_COLS = 8
 export const App = (): ReactElement => {
   const editor = useBoardEditor(BOARD_ROWS, BOARD_COLS)
   const [simResult, setSimResult] = useState<SimulationResult | null>(null)
+  const [ngspiceOn, setNgspiceOn] = useState(false)
+  const [simulating, setSimulating] = useState(false)
+  const ngspice = useMemo(() => createNgspiceSimulator(), [])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleSave = (): void => {
@@ -85,15 +89,17 @@ export const App = (): ReactElement => {
   const findings = useMemo(() => lintCircuit(netlist), [netlist])
   const hasError = findings.some((f) => f.severity === 'error')
 
-  // error がなければスタブへ流す (将来 CircuitJS1/ngspice-wasm に差し替え)。
   // error 時はシミュレータを呼ばず、lint を直せば動く状態にする gating。
+  // ngspice(定量)は on-demand。off の間はスタブ(集計のみ)を流す。
   useEffect(() => {
     if (hasError) {
       setSimResult(null)
       return
     }
+    const port = ngspiceOn ? ngspice : stubSimulator
     let cancelled = false
-    stubSimulator
+    if (ngspiceOn) setSimulating(true)
+    port
       .simulate(netlist)
       .then((r) => {
         if (!cancelled) setSimResult(r)
@@ -101,15 +107,18 @@ export const App = (): ReactElement => {
       .catch((e: unknown) => {
         if (!cancelled) {
           setSimResult({
-            status: 'not-implemented',
-            summary: `シミュレーション失敗: ${e instanceof Error ? e.message : String(e)}`,
+            status: 'error',
+            summary: `シミュレーション失敗: ${errorMessage(e)}`,
           })
         }
+      })
+      .finally(() => {
+        if (!cancelled) setSimulating(false)
       })
     return () => {
       cancelled = true
     }
-  }, [netlist, hasError])
+  }, [netlist, hasError, ngspiceOn, ngspice])
 
   // キーボード操作: R = 回転, C = スイッチ切替, Delete/Backspace = 削除
   useEffect(() => {
@@ -179,6 +188,7 @@ export const App = (): ReactElement => {
             onCellClick={editor.handleCellClick}
             onBlockMove={editor.handleBlockMove}
             onBlockDoubleClick={editor.rotateBlockById}
+            elementCurrents={ngspiceOn ? simResult?.elementCurrents : undefined}
           />
           <div className="toolbar">
             <button
@@ -202,12 +212,22 @@ export const App = (): ReactElement => {
             >
               削除 (Del)
             </button>
+            <button
+              type="button"
+              className={ngspiceOn ? 'ngspice-toggle on' : 'ngspice-toggle'}
+              aria-pressed={ngspiceOn}
+              onClick={() => setNgspiceOn((v) => !v)}
+            >
+              ngspice で計算 {ngspiceOn ? 'ON' : 'OFF'}
+            </button>
             <span className="status">
               ブロック: {editor.board.placements.length} / ネット:{' '}
               {netlist.nets.length} / 素子: {netlist.elements.length}
               {hasError
                 ? ' — ⚠ 回路を修正してください'
-                : simResult && ` — ${simResult.summary}`}
+                : simulating
+                  ? ' — 計算中…'
+                  : simResult && ` — ${simResult.summary}`}
             </span>
           </div>
           {findings.length > 0 && (

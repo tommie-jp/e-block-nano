@@ -1,9 +1,13 @@
 import type { Netlist } from '../netlist/build'
 
-/** シミュレーション結果 (PoC ではサマリのみ)。将来は波形・ノード電圧が入る */
+/** シミュレーション結果。定量エンジンはノード電圧・素子電流を載せる */
 export interface SimulationResult {
-  readonly status: 'ok' | 'not-implemented'
+  readonly status: 'ok' | 'not-implemented' | 'error'
   readonly summary: string
+  /** nodeId → 電圧 [V] */
+  readonly nodeVoltages?: Readonly<Record<string, number>>
+  /** blockId → 電流 [A] (符号つき) */
+  readonly elementCurrents?: Readonly<Record<string, number>>
 }
 
 /**

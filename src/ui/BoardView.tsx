@@ -30,6 +30,8 @@ interface BoardViewProps {
   onCellClick: (cell: Cell) => void
   onBlockMove: (blockId: string, to: Cell) => void
   onBlockDoubleClick: (blockId: string) => void
+  /** blockId → 素子電流 [A] (ngspice 計算後。LED 点灯表現に使う) */
+  elementCurrents?: Readonly<Record<string, number>>
 }
 
 /** グリッドとブロックの SVG 表示。ドラッグでブロック移動 */
@@ -39,6 +41,7 @@ export const BoardView = ({
   onCellClick,
   onBlockMove,
   onBlockDoubleClick,
+  elementCurrents,
 }: BoardViewProps): ReactElement => {
   const svgRef = useRef<SVGSVGElement>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
@@ -181,6 +184,7 @@ export const BoardView = ({
               orientation={p.orientation}
               selected={p.blockId === selectedBlockId}
               closed={p.state?.closed ?? false}
+              current={elementCurrents?.[p.blockId]}
             />
           </g>
         )
