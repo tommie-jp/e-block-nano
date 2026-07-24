@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactElement } from 'react'
 import type { Netlist } from '../core/netlist/build'
 import type { SimulationPort } from '../core/simulation/port'
+import { resampleToAudio } from '../core/simulation/spice/audio'
 import type { Waveforms } from '../core/simulation/spice/mapResult'
 
 interface WaveformPanelProps {
@@ -16,6 +17,8 @@ const PAD = 4
 // PoC 既定の過渡設定 (RC の τ=1s が収まる範囲)。将来サンプルごとに指定可
 const TRAN_STEP = 0.02
 const TRAN_STOP = 5
+// 音を鳴らすときの目標基本周波数 [Hz] (低速の発振をここへピッチシフト)
+const AUDIO_TARGET_HZ = 330
 
 const SERIES_COLORS = ['#4fc3f7', '#ff8a65', '#81c784', '#ba68c8', '#fff176']
 // 描画点の上限。過渡は適応ステップで数万点になる (マルチバイブレータ ~5万点)
@@ -79,12 +82,73 @@ export const WaveformPanel = ({
   const [open, setOpen] = useState(false)
   const [waveforms, setWaveforms] = useState<Waveforms | null>(null)
   const [busy, setBusy] = useState(false)
+  const [playing, setPlaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const analysis = useMemo(
     () => ({ kind: 'tran' as const, step: TRAN_STEP, stop: TRAN_STOP }),
     [],
   )
+
+  /**
+   * 表示中の波形(最も振幅の大きい=発振しているノード)を Web Audio で鳴らす。
+   * 発振が低速(数Hz)でもそのままでは聞こえないので、基本周波数を推定して
+   * 可聴域(AUDIO_TARGET_HZ)へ playbackRate でピッチシフトする。
+   */
+  const playAudio = (): void => {
+    if (!waveforms) return
+    setPlaying(true)
+    setError(null)
+    try {
+      const wf = waveforms
+      // ループで振幅を求める (大配列の spread は stack overflow するため)
+      const range = (s: number[]): { lo: number; hi: number } => {
+        let lo = Infinity
+        let hi = -Infinity
+        for (const v of s) {
+          if (v < lo) lo = v
+          if (v > hi) hi = v
+        }
+        return { lo, hi }
+      }
+      const osc = Object.values(wf.nodeVoltages).reduce((a, b) => {
+        const ra = range(a)
+        const rb = range(b)
+        return rb.hi - rb.lo > ra.hi - ra.lo ? b : a
+      })
+      // 中点交差から基本周波数を推定
+      const { lo, hi } = range(osc)
+      const mid = (lo + hi) / 2
+      let crossings = 0
+      for (let i = 1; i < osc.length; i++) {
+        if ((osc[i - 1] - mid) * (osc[i] - mid) < 0) crossings++
+      }
+      const span = (wf.time.at(-1) ?? 0) - wf.time[0]
+      const freq = span > 0 ? crossings / 2 / span : 0
+      if (freq <= 0) {
+        setError('発振が検出できません(この回路は音になりません)')
+        return
+      }
+      const ctx = new AudioContext()
+      const pcm = resampleToAudio(wf.time, osc, ctx.sampleRate)
+      const buffer = ctx.createBuffer(1, pcm.length, ctx.sampleRate)
+      buffer.getChannelData(0).set(pcm)
+      const src = ctx.createBufferSource()
+      src.buffer = buffer
+      src.loop = true
+      src.playbackRate.value = Math.min(500, Math.max(1, AUDIO_TARGET_HZ / freq))
+      const gain = ctx.createGain()
+      gain.gain.value = 0.2 // 矩形波は大きいので絞る
+      src.connect(gain).connect(ctx.destination)
+      src.start()
+      src.stop(ctx.currentTime + 1.5) // 1.5 秒鳴らす
+      src.onended = () => void ctx.close()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPlaying(false)
+    }
+  }
 
   useEffect(() => {
     if (!open || hasError) return
@@ -115,6 +179,15 @@ export const WaveformPanel = ({
         <button type="button" onClick={() => setOpen((o) => !o)}>
           {open ? '波形を隠す' : '波形 (過渡解析)'}
         </button>
+        {open && !hasError && (
+          <button
+            type="button"
+            disabled={playing || !waveforms}
+            onClick={playAudio}
+          >
+            {playing ? '再生中…' : '▶ 音を鳴らす'}
+          </button>
+        )}
         <span className="sim-note">ngspice .tran でノード電圧の時間変化</span>
       </div>
       {open &&

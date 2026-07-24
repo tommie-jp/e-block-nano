@@ -55,6 +55,14 @@ export const SAMPLE_CIRCUITS: readonly SampleCircuit[] = [
       '交互に発振(約 1.4Hz)。波形パネル(過渡解析)で点滅が見える。立体交差配線でクロス結合。',
     data: astableMultivibrator,
   },
+  {
+    id: 'audio-multivibrator',
+    name: '05-発振音',
+    description:
+      '04 と同じマルチバイブレータを「音」として確認する。波形パネルの' +
+      '「音を鳴らす」で、発振をそのまま可聴域へピッチシフトして再生する(Web Audio)。',
+    data: astableMultivibrator,
+  },
 ]
 
 const byId = new Map(SAMPLE_CIRCUITS.map((s) => [s.id, s]))
