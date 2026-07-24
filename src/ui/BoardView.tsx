@@ -201,7 +201,11 @@ export const BoardView = ({
             const pt = probePoint(probe.nodeId)
             if (!pt) return null
             return (
-              <g key={probe.nodeId} transform={`translate(${pt.x}, ${pt.y})`}>
+              <g
+                key={probe.nodeId}
+                transform={`translate(${pt.x}, ${pt.y})`}
+                className={probe.constant ? 'probe constant' : 'probe'}
+              >
                 <circle className="probe-dot" r={6} fill={probe.color} />
                 <text className="probe-label" x={9} y={4}>
                   {probe.label}

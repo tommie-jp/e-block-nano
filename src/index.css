@@ -379,6 +379,13 @@ body {
   stroke-width: 1.5;
 }
 
+/* ほぼ一定のノード (電源レール等) は薄く・破線で描いて発振を邪魔しない */
+.wave-line.constant {
+  stroke-width: 1;
+  opacity: 0.4;
+  stroke-dasharray: 3 3;
+}
+
 .wave-label {
   fill: var(--text-dim);
   font-size: 11px;
@@ -403,10 +410,35 @@ body {
 
 .wave-legend li {
   display: flex;
+}
+
+/* 凡例項目はクリックで系列の表示/非表示を切り替えるボタン */
+.wave-legend-item {
+  display: flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
   color: var(--text);
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  min-height: auto;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.wave-legend-item.constant {
+  color: var(--text-dim);
+}
+
+/* 非表示中: スウォッチと文字を薄く + 取り消し線で「消えている」と分かる */
+.wave-legend-item.off {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+
+.wave-legend-item.off .wave-swatch {
+  opacity: 0.3;
 }
 
 .wave-swatch {
@@ -419,6 +451,11 @@ body {
 /* ボード上のノード●。ドラッグを邪魔しないよう当たり判定を無効化 */
 .probe-layer {
   pointer-events: none;
+}
+
+/* ほぼ一定のノード (レール) は●も薄く。波形の薄い破線と対応させる */
+.probe.constant {
+  opacity: 0.45;
 }
 
 .probe-dot {
