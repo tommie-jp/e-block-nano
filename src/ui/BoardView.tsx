@@ -5,6 +5,8 @@ import type { Board, Cell, Placement } from '../core/grid/types'
 import { getPart } from '../core/parts/catalog'
 import { BlockGlyph } from '../render/BlockGlyph'
 import { CELL_SIZE } from '../render/constants'
+import type { NodeProbe } from './waveProbes'
+import { probePoint } from './waveProbes'
 
 // これ未満はクリック (選択) 扱い。指はマウスより不正確なので大きめ
 const DRAG_THRESHOLD_MOUSE_PX = 5
@@ -32,6 +34,8 @@ interface BoardViewProps {
   onBlockDoubleClick: (blockId: string) => void
   /** blockId → 素子電流 [A] (ngspice 計算後。LED 点灯表現に使う) */
   elementCurrents?: Readonly<Record<string, number>>
+  /** 波形表示中のノード。位置に色つき●を重ねて波形の色と対応づける */
+  probes?: readonly NodeProbe[]
 }
 
 /** グリッドとブロックの SVG 表示。ドラッグでブロック移動 */
@@ -42,6 +46,7 @@ export const BoardView = ({
   onBlockMove,
   onBlockDoubleClick,
   elementCurrents,
+  probes,
 }: BoardViewProps): ReactElement => {
   const svgRef = useRef<SVGSVGElement>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
@@ -189,6 +194,23 @@ export const BoardView = ({
           </g>
         )
       })}
+      {/* 波形に出ているノードの位置に、波形と同色の●を重ねる (色=ノードの対応) */}
+      {probes && probes.length > 0 && (
+        <g className="probe-layer">
+          {probes.map((probe) => {
+            const pt = probePoint(probe.nodeId)
+            if (!pt) return null
+            return (
+              <g key={probe.nodeId} transform={`translate(${pt.x}, ${pt.y})`}>
+                <circle className="probe-dot" r={6} fill={probe.color} />
+                <text className="probe-label" x={9} y={4}>
+                  {probe.label}
+                </text>
+              </g>
+            )
+          })}
+        </g>
+      )}
     </svg>
   )
 }

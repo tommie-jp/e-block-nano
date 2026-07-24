@@ -4,11 +4,15 @@ import type { Netlist } from '../core/netlist/build'
 import type { SimulationPort } from '../core/simulation/port'
 import { resampleToAudio } from '../core/simulation/spice/audio'
 import type { Waveforms } from '../core/simulation/spice/mapResult'
+import type { NodeProbe } from './waveProbes'
+import { selectProbes } from './waveProbes'
 
 interface WaveformPanelProps {
   netlist: Netlist
   hasError: boolean
   simulator: SimulationPort
+  /** 表示中ノード (色つき) をボードに知らせる。●をノード位置に重ねる用 */
+  onProbes?: (probes: NodeProbe[]) => void
 }
 
 const W = 600
@@ -20,19 +24,23 @@ const TRAN_STOP = 5
 // 音を鳴らすときの目標基本周波数 [Hz] (低速の発振をここへピッチシフト)
 const AUDIO_TARGET_HZ = 330
 
-const SERIES_COLORS = ['#4fc3f7', '#ff8a65', '#81c784', '#ba68c8', '#fff176']
 // 描画点の上限。過渡は適応ステップで数万点になる (マルチバイブレータ ~5万点)
 const MAX_POINTS = 1000
 
-/** 波形を単純な折れ線 SVG にする */
-const Chart = ({ waveforms }: { waveforms: Waveforms }): ReactElement => {
+/** 波形を折れ線 SVG + 凡例にする。色は probes と共有 (ボードの●と一致) */
+const Chart = ({
+  waveforms,
+  probes,
+}: {
+  waveforms: Waveforms
+  probes: NodeProbe[]
+}): ReactElement => {
   const { time, nodeVoltages } = waveforms
   const maxT = time.at(-1) || 1
-  const series = Object.entries(nodeVoltages).filter(([, v]) => v.some((x) => x !== 0))
   // 大きな配列を spread すると stack overflow するのでループで最大値を取る
   let maxV = 1
-  for (const [, v] of series) {
-    for (const val of v) {
+  for (const p of probes) {
+    for (const val of nodeVoltages[p.nodeId]) {
       const a = Math.abs(val)
       if (a > maxV) maxV = a
     }
@@ -50,23 +58,33 @@ const Chart = ({ waveforms }: { waveforms: Waveforms }): ReactElement => {
   }
 
   return (
-    <svg className="waveform" viewBox={`0 0 ${W} ${H}`} role="img">
-      <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} className="wave-axis" />
-      {series.map(([nodeId, values], i) => (
-        <polyline
-          key={nodeId}
-          className="wave-line"
-          stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
-          points={pointsFor(values)}
-        />
-      ))}
-      <text x={PAD + 2} y={12} className="wave-label">
-        {maxV.toFixed(1)}V
-      </text>
-      <text x={W - PAD - 2} y={H - PAD - 3} className="wave-label" textAnchor="end">
-        {maxT.toFixed(1)}s
-      </text>
-    </svg>
+    <div className="wave-wrap">
+      <svg className="waveform" viewBox={`0 0 ${W} ${H}`} role="img">
+        <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} className="wave-axis" />
+        {probes.map((p) => (
+          <polyline
+            key={p.nodeId}
+            className="wave-line"
+            stroke={p.color}
+            points={pointsFor(nodeVoltages[p.nodeId])}
+          />
+        ))}
+        <text x={PAD + 2} y={12} className="wave-label">
+          {maxV.toFixed(1)}V
+        </text>
+        <text x={W - PAD - 2} y={H - PAD - 3} className="wave-label" textAnchor="end">
+          {maxT.toFixed(1)}s
+        </text>
+      </svg>
+      <ul className="wave-legend">
+        {probes.map((p) => (
+          <li key={p.nodeId}>
+            <span className="wave-swatch" style={{ background: p.color }} />
+            {p.label}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 
@@ -78,6 +96,7 @@ export const WaveformPanel = ({
   netlist,
   hasError,
   simulator,
+  onProbes,
 }: WaveformPanelProps): ReactElement => {
   const [open, setOpen] = useState(false)
   const [waveforms, setWaveforms] = useState<Waveforms | null>(null)
@@ -90,6 +109,17 @@ export const WaveformPanel = ({
     () => ({ kind: 'tran' as const, step: TRAN_STEP, stop: TRAN_STOP }),
     [],
   )
+
+  // 表示中のノード (色つき)。パネルを閉じていれば空 → ボードの●も消える
+  const probes = useMemo(
+    () => (open && waveforms ? selectProbes(waveforms) : []),
+    [open, waveforms],
+  )
+  useEffect(() => {
+    onProbes?.(probes)
+  }, [probes, onProbes])
+  // アンマウント時はボードの●を消す
+  useEffect(() => () => onProbes?.([]), [onProbes])
 
   const stopAudio = (): void => {
     audioRef.current?.close().catch(() => {})
@@ -228,8 +258,10 @@ export const WaveformPanel = ({
           <p className="status">計算中…</p>
         ) : error ? (
           <p className="error">{error}</p>
+        ) : waveforms && probes.length > 0 ? (
+          <Chart waveforms={waveforms} probes={probes} />
         ) : waveforms ? (
-          <Chart waveforms={waveforms} />
+          <p className="status">変化するノードがありません</p>
         ) : null)}
     </section>
   )

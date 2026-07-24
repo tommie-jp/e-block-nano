@@ -18,6 +18,7 @@ import { BoardView } from './BoardView'
 import { PartsPalette } from './PartsPalette'
 import { SimulatorPanel } from './SimulatorPanel'
 import type { LiveCurrents } from './useCircuitJsLive'
+import type { NodeProbe } from './waveProbes'
 import { WaveformPanel } from './WaveformPanel'
 
 const errorMessage = (e: unknown): string =>
@@ -30,6 +31,7 @@ export const App = (): ReactElement => {
   const editor = useBoardEditor(BOARD_ROWS, BOARD_COLS)
   const [simResult, setSimResult] = useState<SimulationResult | null>(null)
   const [liveCurrents, setLiveCurrents] = useState<LiveCurrents | null>(null)
+  const [waveProbes, setWaveProbes] = useState<NodeProbe[]>([])
   const [ngspiceOn, setNgspiceOn] = useState(false)
   const [simulating, setSimulating] = useState(false)
   const ngspice = useMemo(() => createNgspiceSimulator(), [])
@@ -203,6 +205,7 @@ export const App = (): ReactElement => {
               liveCurrents ??
               (ngspiceOn ? simResult?.elementCurrents : undefined)
             }
+            probes={waveProbes}
           />
           <div className="toolbar">
             <button
@@ -265,6 +268,7 @@ export const App = (): ReactElement => {
             netlist={netlist}
             hasError={hasError}
             simulator={ngspice}
+            onProbes={setWaveProbes}
           />
         </div>
       </main>

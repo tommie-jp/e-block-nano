@@ -7,6 +7,7 @@ import type {
   Orientation,
   PlacementState,
 } from '../grid/types'
+import { edgeKey } from './edgeKey'
 
 /** ブロック端子 1 点。terminal は方位 (ワイヤ) か素子ピンの役割名 */
 export interface Terminal {
@@ -45,23 +46,6 @@ export interface Netlist {
    * 電池が無ければ null (シミュレーション不能。将来の circuit lint が検出する)。
    */
   readonly groundNode: string | null
-}
-
-/**
- * セルの辺 (接点位置) を盤面全体で一意なキーにする。
- * 隣接セルは境界の辺を共有する → 同じキーになり、そこがノードになる (辺中央接点)。
- */
-const edgeKey = (cell: Cell, dir: Direction): string => {
-  switch (dir) {
-    case 'N':
-      return `H:${cell.row},${cell.col}`
-    case 'S':
-      return `H:${cell.row + 1},${cell.col}`
-    case 'W':
-      return `V:${cell.row},${cell.col}`
-    case 'E':
-      return `V:${cell.row},${cell.col + 1}`
-  }
 }
 
 const boardEdgeKey = (
