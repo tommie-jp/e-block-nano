@@ -3,28 +3,26 @@ import type { PointerEvent, ReactElement } from 'react'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import { measureSeries } from '../../core/simulation/spice/measure'
 import type { NodeProbe } from '../waveProbes'
-import { viewWindow } from '../waveProbes'
+import { dominantOscillation, viewWindow } from '../waveProbes'
 import { Cursors } from './Cursors'
 import type { CursorId, CursorState } from './Cursors'
-import {
-  CHART,
-  DEFAULT_WINDOW,
-  DEFAULT_Y_RANGE,
-  makeScales,
-  voltageRange,
-} from './geometry'
+import { CHART, DEFAULT_WINDOW, DEFAULT_Y_RANGE, makeScales } from './geometry'
 import { Graticule } from './Graticule'
 import { laneBand } from './lanes'
 import type { MathNodes } from './mathTrace'
 import { differenceSeries } from './mathTrace'
 import { MeasurementTable } from './MeasurementTable'
+import { triggerTime } from './trigger'
+import type { Slope } from './trigger'
+import { XYPlot } from './XYPlot'
+import { FftPlot } from './FftPlot'
 
 // 描画点の上限。過渡は適応ステップで数万点になる (マルチバイブレータ ~5万点)
 const MAX_POINTS = 1000
-// Math (差動) トレースの色。系列色 (SERIES_COLORS) と衝突しない白
 const MATH_COLOR = '#ffffff'
-// 振幅ズーム (段組み時の V/div 相当) の選択肢
 const GAINS = [0.5, 1, 2, 4, 8]
+
+type View = 'time' | 'xy' | 'fft'
 
 interface Trace {
   key: string
@@ -35,15 +33,12 @@ interface Trace {
 }
 
 interface WaveformChartProps {
-  /** null なら空のオシロ (グレーティクルのみ) を描く */
   waveforms: Waveforms | null
   probes: NodeProbe[]
   hidden: ReadonlySet<string>
   onToggle: (nodeId: string) => void
   status?: string | null
-  /** 選択中 2 端子素子の両端ノード。差動トレースを描く */
   mathNodes?: MathNodes | null
-  /** 比較用に保存した波形 (薄く重ねる) */
   reference?: Waveforms | null
   onSaveReference?: () => void
   onClearReference?: () => void
@@ -65,13 +60,13 @@ const range = (values: readonly number[]): { lo: number; hi: number } => {
   }
   return Number.isFinite(lo) ? { lo, hi } : { lo: 0, hi: 0 }
 }
+const mean = (values: readonly number[]): number =>
+  values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0
 
 /**
- * オシロ相当の波形ビュー。Tier1 (目盛り/測定/カーソル) に加え、
- * - 段組み表示 (重なり解消) と振幅ズーム (V/div 相当)
- * - Math A−B (選択 2 端子素子の両端電圧)
- * - リファレンス波形 (編集前を薄く重ねて比較)
- * を持つ。ngspice 未準備でも空オシロを常時描く (waveforms=null)。
+ * オシロ相当の波形ビュー。時間/XY/FFT の表示切替に加え、
+ * Tier1 (目盛り/測定/カーソル), Tier2 (段組み/振幅/Math/参照),
+ * Tier3 (エッジトリガ/AC カップリング/XY/FFT) を持つ。
  */
 export const WaveformChart = ({
   waveforms,
@@ -87,23 +82,77 @@ export const WaveformChart = ({
   const svgRef = useRef<SVGSVGElement>(null)
   const hasData = waveforms != null && probes.length > 0
 
+  const [view, setView] = useState<View>('time')
   const [mode, setMode] = useState<'overlay' | 'stacked'>('overlay')
   const [gain, setGain] = useState(1)
+  const [ac, setAc] = useState(false)
+  const [trigOn, setTrigOn] = useState(false)
+  const [trigSlope, setTrigSlope] = useState<Slope>('rising')
   const [cursorsOn, setCursorsOn] = useState(false)
   const [cursor, setCursor] = useState<CursorState>({ tA: 0, tB: 0, vA: 0, vB: 0 })
   const [dragging, setDragging] = useState<CursorId | null>(null)
+  const [xySel, setXySel] = useState<{ x: string; y: string }>({ x: '', y: '' })
+  const [fftSel, setFftSel] = useState('')
 
-  const win = useMemo(
-    () => (hasData ? viewWindow(waveforms, probes) : DEFAULT_WINDOW),
-    [hasData, waveforms, probes],
+  const visible = useMemo(
+    () => probes.filter((p) => !hidden.has(p.nodeId)),
+    [probes, hidden],
   )
-  const yRange = useMemo(
-    () => (hasData ? voltageRange(waveforms, probes) : DEFAULT_Y_RANGE),
-    [hasData, waveforms, probes],
-  )
+  const visibleIds = visible.map((p) => p.nodeId)
+  // 既定ソースは発振ノード (非 constant) を優先。レール(N1)を選ばないように
+  const preferredIds = [
+    ...visible.filter((p) => !p.constant).map((p) => p.nodeId),
+    ...visible.filter((p) => p.constant).map((p) => p.nodeId),
+  ]
+  const xX = xySel.x && visibleIds.includes(xySel.x) ? xySel.x : preferredIds[0] ?? ''
+  const xY =
+    xySel.y && visibleIds.includes(xySel.y)
+      ? xySel.y
+      : preferredIds[1] ?? preferredIds[0] ?? ''
+  const fftId = fftSel && visibleIds.includes(fftSel) ? fftSel : preferredIds[0] ?? ''
+
+  // トリガ: 支配ノードの中点を最初に横切る時刻へ窓の左端を合わせる
+  const win = useMemo(() => {
+    if (!hasData) return DEFAULT_WINDOW
+    const base = viewWindow(waveforms, probes)
+    if (!trigOn) return base
+    const src = dominantOscillation(waveforms, probes)
+    const nodeId = src?.nodeId ?? visibleIds[0]
+    if (!nodeId) return base
+    const vals = waveforms.nodeVoltages[nodeId]
+    const { lo, hi } = range(vals)
+    const t = triggerTime(waveforms.time, vals, (lo + hi) / 2, trigSlope)
+    if (t == null) return base
+    const span = base.end - base.start
+    const end = Math.min(waveforms.time.at(-1) ?? t + span, t + span)
+    return { start: t, end }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasData, waveforms, probes, trigOn, trigSlope])
+
+  // AC カップリング: 各系列から DC (平均) を引いて描く
+  const dc = useMemo(() => {
+    const m = new Map<string, number>()
+    if (waveforms) for (const p of probes) m.set(p.nodeId, mean(waveforms.nodeVoltages[p.nodeId]))
+    return m
+  }, [waveforms, probes])
+
+  const yRange = useMemo(() => {
+    if (!hasData) return DEFAULT_Y_RANGE
+    let min = 0
+    let max = 0
+    for (const p of probes) {
+      const d = ac ? (dc.get(p.nodeId) ?? 0) : 0
+      for (const v of waveforms.nodeVoltages[p.nodeId]) {
+        const x = v - d
+        if (x < min) min = x
+        if (x > max) max = x
+      }
+    }
+    return min === max ? { min: -1, max: 1 } : { min, max }
+  }, [hasData, waveforms, probes, ac, dc])
+
   const scales = useMemo(() => makeScales(win, yRange), [win, yRange])
 
-  // Math (差動) 系列: 両端ノードが揃っていれば A−B を作る
   const mathValues = useMemo(() => {
     if (!waveforms || !mathNodes) return null
     const a = waveforms.nodeVoltages[mathNodes.a]
@@ -111,31 +160,31 @@ export const WaveformChart = ({
     return a && b ? differenceSeries(a, b) : null
   }, [waveforms, mathNodes])
 
-  // 描画するトレース (可視プローブ + Math)。段組み/重ねで共通に使う
+  // 描画トレース (可視プローブ + Math)。AC 時は DC を除去
   const traces = useMemo<Trace[]>(() => {
     if (!waveforms) return []
-    const list: Trace[] = probes
-      .filter((p) => !hidden.has(p.nodeId))
-      .map((p) => ({
-        key: p.nodeId,
-        label: p.label,
-        color: p.color,
-        constant: p.constant,
-        values: waveforms.nodeVoltages[p.nodeId],
-      }))
+    const detrend = (id: string, raw: number[]): number[] =>
+      ac ? raw.map((v) => v - (dc.get(id) ?? mean(raw))) : raw
+    const list: Trace[] = visible.map((p) => ({
+      key: p.nodeId,
+      label: p.label,
+      color: p.color,
+      constant: p.constant,
+      values: detrend(p.nodeId, waveforms.nodeVoltages[p.nodeId]),
+    }))
     if (mathValues && mathNodes) {
       list.push({
         key: '__math',
         label: mathNodes.label,
         color: MATH_COLOR,
         constant: false,
-        values: mathValues,
+        values: ac ? mathValues.map((v) => v - mean(mathValues)) : mathValues,
       })
     }
     return list
-  }, [waveforms, probes, hidden, mathValues, mathNodes])
+  }, [waveforms, visible, mathValues, mathNodes, ac, dc])
 
-  // --- カーソル (既定オフ、重ね表示時のみ) ---
+  // --- カーソル (時間ビュー・重ね表示時のみ) ---
   const enableCursors = (): void => {
     const span = win.end - win.start
     const vSpan = yRange.max - yRange.min
@@ -174,7 +223,6 @@ export const WaveformChart = ({
   }
   const endDrag = (): void => setDragging(null)
 
-  // 時系列を折れ線 points 文字列に。yFn で重ね/段組みを切り替える
   const pointsFor = (
     t: readonly number[],
     values: readonly number[],
@@ -189,7 +237,6 @@ export const WaveformChart = ({
     }
     return parts.join(' ')
   }
-  // 段組み: 各トレースを自分のレーンに自動フィット (中点基準) + gain 倍
   const stackedY = (lane: { cy: number; half: number }, values: readonly number[]) => {
     const { lo, hi } = range(values)
     const mid = (lo + hi) / 2
@@ -197,8 +244,8 @@ export const WaveformChart = ({
     return (v: number): number => lane.cy - ((v - mid) / amp) * lane.half * gain
   }
 
-  const stacked = mode === 'stacked'
-  const cursorsUsable = hasData && !stacked
+  const stacked = view === 'time' && mode === 'stacked'
+  const cursorsUsable = hasData && view === 'time' && !stacked
   const time = waveforms?.time ?? []
   const dt = Math.abs(cursor.tB - cursor.tA)
   const dv = Math.abs(cursor.vB - cursor.vA)
@@ -206,6 +253,22 @@ export const WaveformChart = ({
   const plotCy = (scales.plot.top + scales.plot.bottom) / 2
   const mathMeasure =
     mathValues && waveforms ? measureSeries(waveforms.time, mathValues) : null
+  const labelOf = (id: string): string =>
+    probes.find((p) => p.nodeId === id)?.label ?? id
+  const colorOf = (id: string): string =>
+    probes.find((p) => p.nodeId === id)?.color ?? '#4fc3f7'
+
+  const viewBtn = (v: View, text: string): ReactElement => (
+    <button
+      type="button"
+      className="toggle"
+      aria-pressed={view === v}
+      disabled={!hasData}
+      onClick={() => setView(v)}
+    >
+      {text}
+    </button>
+  )
 
   return (
     <div className="wave-wrap">
@@ -217,27 +280,26 @@ export const WaveformChart = ({
         onPointerMove={onMove}
         onPointerUp={endDrag}
       >
-        <Graticule scales={scales} showY={!stacked} />
+        {view === 'time' && <Graticule scales={scales} showY={!stacked} />}
 
-        {/* リファレンス波形 (重ね表示時のみ、薄い破線) */}
-        {!stacked &&
+        {view === 'time' &&
+          !stacked &&
           hasData &&
           reference &&
           traces.map((t) => {
             const ref = reference.nodeVoltages[t.key]
-            if (!ref) return null
-            return (
+            return ref ? (
               <polyline
                 key={`ref-${t.key}`}
                 className="wave-line reference"
                 stroke={t.color}
                 points={pointsFor(reference.time, ref, scales.y)}
               />
-            )
+            ) : null
           })}
 
-        {/* 波形本体 */}
-        {hasData &&
+        {view === 'time' &&
+          hasData &&
           traces.map((t, i) => {
             if (stacked) {
               const lane = laneBand(i, traces.length, scales.plot)
@@ -282,6 +344,24 @@ export const WaveformChart = ({
             )
           })}
 
+        {view === 'xy' && hasData && xX && xY && (
+          <XYPlot
+            waveforms={waveforms}
+            xId={xX}
+            yId={xY}
+            xLabel={labelOf(xX)}
+            yLabel={labelOf(xY)}
+          />
+        )}
+        {view === 'fft' && hasData && fftId && (
+          <FftPlot
+            waveforms={waveforms}
+            nodeId={fftId}
+            color={colorOf(fftId)}
+            label={labelOf(fftId)}
+          />
+        )}
+
         {cursorsOn && cursorsUsable && (
           <Cursors scales={scales} cursor={cursor} onGrab={grab} />
         )}
@@ -292,68 +372,141 @@ export const WaveformChart = ({
         )}
       </svg>
 
+      {/* 表示モード */}
       <div className="wave-controls">
-        <button
-          type="button"
-          className="toggle"
-          aria-pressed={stacked}
-          disabled={!hasData}
-          onClick={() => setMode(stacked ? 'overlay' : 'stacked')}
-        >
-          段組み
-        </button>
-        <span className="gain-control">
-          振幅
-          <button
-            type="button"
-            disabled={!hasData || gain <= GAINS[0]}
-            onClick={() => setGain((g) => GAINS[Math.max(0, GAINS.indexOf(g) - 1)])}
-            aria-label="振幅を下げる"
-          >
-            −
-          </button>
-          ×{gain}
-          <button
-            type="button"
-            disabled={!hasData || gain >= GAINS.at(-1)!}
-            onClick={() =>
-              setGain((g) => GAINS[Math.min(GAINS.length - 1, GAINS.indexOf(g) + 1)])
-            }
-            aria-label="振幅を上げる"
-          >
-            +
-          </button>
-        </span>
-        <button
-          type="button"
-          className="toggle"
-          aria-pressed={cursorsOn}
-          disabled={!cursorsUsable}
-          onClick={() => (cursorsOn ? setCursorsOn(false) : enableCursors())}
-        >
-          カーソル
-        </button>
-        {reference ? (
-          <button type="button" disabled={!onClearReference} onClick={onClearReference}>
-            参照クリア
-          </button>
-        ) : (
-          <button type="button" disabled={!hasData || !onSaveReference} onClick={onSaveReference}>
-            参照を保存
-          </button>
-        )}
-        {cursorsOn && cursorsUsable && (
-          <span className="cursor-readout">
-            Δt = {fmtT(dt)}
-            {dt > 0 && <> / 1/Δt = {fmtHz(1 / dt)}</>} &nbsp; ΔV = {fmtV(dv)}
+        {viewBtn('time', '時間')}
+        {viewBtn('xy', 'XY')}
+        {viewBtn('fft', 'FFT')}
+        {view === 'xy' && hasData && (
+          <span className="src-picker">
+            X
+            <select value={xX} onChange={(e) => setXySel((s) => ({ ...s, x: e.target.value }))}>
+              {visible.map((p) => (
+                <option key={p.nodeId} value={p.nodeId}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            Y
+            <select value={xY} onChange={(e) => setXySel((s) => ({ ...s, y: e.target.value }))}>
+              {visible.map((p) => (
+                <option key={p.nodeId} value={p.nodeId}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
           </span>
         )}
-        {mathMeasure && (
-          <span className="math-readout">
-            M (両端): Vpp {fmtV(mathMeasure.vpp)} / Vavg {fmtV(mathMeasure.vavg)}
+        {view === 'fft' && hasData && (
+          <span className="src-picker">
+            対象
+            <select value={fftId} onChange={(e) => setFftSel(e.target.value)}>
+              {visible.map((p) => (
+                <option key={p.nodeId} value={p.nodeId}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
           </span>
         )}
       </div>
+
+      {/* 時間ビューの操作 */}
+      {view === 'time' && (
+        <div className="wave-controls">
+          <button
+            type="button"
+            className="toggle"
+            aria-pressed={stacked}
+            disabled={!hasData}
+            onClick={() => setMode(stacked ? 'overlay' : 'stacked')}
+          >
+            段組み
+          </button>
+          <span className="gain-control">
+            振幅
+            <button
+              type="button"
+              disabled={!hasData || gain <= GAINS[0]}
+              onClick={() => setGain((g) => GAINS[Math.max(0, GAINS.indexOf(g) - 1)])}
+              aria-label="振幅を下げる"
+            >
+              −
+            </button>
+            ×{gain}
+            <button
+              type="button"
+              disabled={!hasData || gain >= GAINS.at(-1)!}
+              onClick={() =>
+                setGain((g) => GAINS[Math.min(GAINS.length - 1, GAINS.indexOf(g) + 1)])
+              }
+              aria-label="振幅を上げる"
+            >
+              +
+            </button>
+          </span>
+          <button
+            type="button"
+            className="toggle"
+            aria-pressed={ac}
+            disabled={!hasData}
+            onClick={() => setAc((v) => !v)}
+          >
+            AC
+          </button>
+          <button
+            type="button"
+            className="toggle"
+            aria-pressed={trigOn}
+            disabled={!hasData}
+            onClick={() => setTrigOn((v) => !v)}
+          >
+            トリガ
+          </button>
+          {trigOn && (
+            <button
+              type="button"
+              onClick={() => setTrigSlope((s) => (s === 'rising' ? 'falling' : 'rising'))}
+              aria-label="トリガのスロープ"
+            >
+              {trigSlope === 'rising' ? '↑' : '↓'}
+            </button>
+          )}
+          <button
+            type="button"
+            className="toggle"
+            aria-pressed={cursorsOn}
+            disabled={!cursorsUsable}
+            onClick={() => (cursorsOn ? setCursorsOn(false) : enableCursors())}
+          >
+            カーソル
+          </button>
+          {reference ? (
+            <button type="button" disabled={!onClearReference} onClick={onClearReference}>
+              参照クリア
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!hasData || !onSaveReference}
+              onClick={onSaveReference}
+            >
+              参照を保存
+            </button>
+          )}
+          {cursorsOn && cursorsUsable && (
+            <span className="cursor-readout">
+              Δt = {fmtT(dt)}
+              {dt > 0 && <> / 1/Δt = {fmtHz(1 / dt)}</>} &nbsp; ΔV = {fmtV(dv)}
+            </span>
+          )}
+          {mathMeasure && (
+            <span className="math-readout">
+              M (両端): Vpp {fmtV(mathMeasure.vpp)} / Vavg {fmtV(mathMeasure.vavg)}
+            </span>
+          )}
+        </div>
+      )}
 
       <ul className="wave-legend">
         {probes.map((p) => {
@@ -376,7 +529,7 @@ export const WaveformChart = ({
         })}
       </ul>
 
-      {hasData && (
+      {hasData && view === 'time' && (
         <MeasurementTable waveforms={waveforms} probes={probes} hidden={hidden} />
       )}
     </div>

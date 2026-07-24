@@ -439,6 +439,26 @@ body {
   font-weight: 700;
 }
 
+/* XY モード (リサージュ) の軌跡 */
+.xy-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  opacity: 0.9;
+}
+
+/* FFT モードのスペクトル (面) とピーク線 */
+.fft-area {
+  opacity: 0.5;
+  stroke: none;
+}
+
+.fft-peak {
+  stroke: var(--warning);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
 .wave-label {
   fill: var(--text-dim);
   font-size: 11px;
@@ -530,6 +550,25 @@ body {
   font-size: 12px;
   color: var(--text);
   font-variant-numeric: tabular-nums;
+}
+
+/* XY/FFT のソース選択 */
+.src-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.src-picker select {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  min-height: 30px;
+  font-size: 12px;
 }
 
 /* 振幅ズーム (V/div 相当) の −/+ */
