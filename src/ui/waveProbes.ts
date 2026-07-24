@@ -1,5 +1,6 @@
 import { parseEdgeKey } from '../core/netlist/edgeKey'
 import { CELL_SIZE } from '../render/constants'
+import { estimateFrequency } from '../core/simulation/spice/measure'
 import type { Waveforms } from '../core/simulation/spice/mapResult'
 
 /** 波形の系列色。凡例・波形線・ボード上の●で共有する (色=ノードの対応) */
@@ -68,21 +69,8 @@ export const dominantOscillation = (
   }
   if (!best || best.range <= 0) return null
 
-  const { series } = best
-  let lo = Infinity
-  let hi = -Infinity
-  for (const v of series) {
-    if (v < lo) lo = v
-    if (v > hi) hi = v
-  }
-  const mid = (lo + hi) / 2
-  let crossings = 0
-  for (let i = 1; i < series.length; i++) {
-    if ((series[i - 1] - mid) * (series[i] - mid) < 0) crossings++
-  }
-  const span = (waveforms.time.at(-1) ?? 0) - (waveforms.time[0] ?? 0)
-  const freq = span > 0 ? crossings / 2 / span : 0
-  return freq > 0 ? { nodeId: best.nodeId, freq } : null
+  const freq = estimateFrequency(waveforms.time, best.series)
+  return freq ? { nodeId: best.nodeId, freq } : null
 }
 
 /**

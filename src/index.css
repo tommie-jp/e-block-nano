@@ -375,9 +375,26 @@ body {
   background: var(--panel);
 }
 
-.wave-axis {
-  stroke: var(--border);
+/* グレーティクル (方眼) と目盛りラベル */
+.grat-line {
+  stroke: rgba(255, 255, 255, 0.09);
   stroke-width: 1;
+}
+
+/* 0V 基準線は強調 */
+.grat-line.zero {
+  stroke: rgba(255, 255, 255, 0.28);
+}
+
+.grat-label {
+  fill: var(--text-dim);
+  font-size: 9px;
+}
+
+.grat-unit {
+  fill: var(--text-dim);
+  font-size: 9px;
+  font-weight: 700;
 }
 
 .wave-line {
@@ -452,6 +469,101 @@ body {
   height: 12px;
   border-radius: 3px;
   flex: none;
+}
+
+/* --- カーソル --- */
+.wave-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wave-controls .toggle {
+  min-height: 34px;
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.cursor-readout {
+  font-size: 12px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.cursor-line {
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  fill: none;
+}
+
+.cursor-time .cursor-line {
+  stroke: var(--accent);
+}
+
+.cursor-volt .cursor-line {
+  stroke: var(--warning);
+}
+
+/* 掴み用の透明太線。指でも掴めるようにする */
+.cursor-grab {
+  stroke: transparent;
+  stroke-width: 14;
+  fill: none;
+}
+
+.cursor-time .cursor-grab {
+  cursor: ew-resize;
+}
+
+.cursor-volt .cursor-grab {
+  cursor: ns-resize;
+}
+
+.cursor-tag {
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.cursor-time .cursor-tag {
+  fill: var(--accent);
+}
+
+.cursor-volt .cursor-tag {
+  fill: var(--warning);
+}
+
+/* --- 自動測定表 --- */
+.measure-table {
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.measure-table th,
+.measure-table td {
+  padding: 3px 10px 3px 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.measure-table thead th {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.measure-table tbody th {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  text-align: left;
 }
 
 /* ボード上のノード●。ドラッグを邪魔しないよう当たり判定を無効化 */

@@ -5,7 +5,8 @@ import type { SimulationPort } from '../core/simulation/port'
 import { resampleToAudio } from '../core/simulation/spice/audio'
 import type { Waveforms } from '../core/simulation/spice/mapResult'
 import type { NodeProbe } from './waveProbes'
-import { dominantOscillation, selectProbes, viewWindow } from './waveProbes'
+import { dominantOscillation, selectProbes } from './waveProbes'
+import { WaveformChart } from './scope/WaveformChart'
 
 interface WaveformPanelProps {
   netlist: Netlist
@@ -15,113 +16,11 @@ interface WaveformPanelProps {
   onProbes?: (probes: NodeProbe[]) => void
 }
 
-const W = 600
-const H = 200
-const PAD = 4
 // PoC 既定の過渡設定 (RC の τ=1s が収まる範囲)。将来サンプルごとに指定可
 const TRAN_STEP = 0.02
 const TRAN_STOP = 5
 // 音を鳴らすときの目標基本周波数 [Hz] (低速の発振をここへピッチシフト)
 const AUDIO_TARGET_HZ = 330
-
-// 描画点の上限。過渡は適応ステップで数万点になる (マルチバイブレータ ~5万点)
-const MAX_POINTS = 1000
-
-/**
- * 波形を折れ線 SVG + 凡例にする。色は probes と共有 (ボードの●と一致)。
- * - 発振時は末尾の数周期だけにクロップして密集を防ぐ (viewWindow)
- * - 凡例クリックで系列の表示/非表示 (hidden。ボードの●も連動)
- * - ほぼ一定のノード (レール) は薄く描く (constant)
- */
-const Chart = ({
-  waveforms,
-  probes,
-  hidden,
-  onToggle,
-}: {
-  waveforms: Waveforms
-  probes: NodeProbe[]
-  hidden: ReadonlySet<string>
-  onToggle: (nodeId: string) => void
-}): ReactElement => {
-  const { time, nodeVoltages } = waveforms
-  const win = useMemo(() => viewWindow(waveforms, probes), [waveforms, probes])
-  // 大きな配列を spread すると stack overflow するのでループで最大値を取る
-  // (トグルで y スケールが動くと見づらいので、全 probe で固定する)
-  let maxV = 1
-  for (const p of probes) {
-    for (const val of nodeVoltages[p.nodeId]) {
-      const a = Math.abs(val)
-      if (a > maxV) maxV = a
-    }
-  }
-  const span = win.end - win.start || 1
-  const x = (t: number): number => PAD + ((t - win.start) / span) * (W - 2 * PAD)
-  const y = (v: number): number => H - PAD - (v / maxV) * (H - 2 * PAD)
-  // 表示窓内の添字範囲 (time は昇順)
-  let i0 = 0
-  while (i0 < time.length && time[i0] < win.start) i0++
-  const count = time.length - i0
-  // 点数が多い過渡は描画用に間引く (1 ピクセル 1〜2 点で十分)
-  const stride = Math.max(1, Math.ceil(count / MAX_POINTS))
-  const pointsFor = (values: number[]): string => {
-    const parts: string[] = []
-    for (let j = i0; j < values.length; j += stride) {
-      parts.push(`${x(time[j])},${y(values[j])}`)
-    }
-    return parts.join(' ')
-  }
-  const cropped = win.start > (time[0] ?? 0)
-
-  return (
-    <div className="wave-wrap">
-      <svg className="waveform" viewBox={`0 0 ${W} ${H}`} role="img">
-        <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} className="wave-axis" />
-        {probes
-          .filter((p) => !hidden.has(p.nodeId))
-          .map((p) => (
-            <polyline
-              key={p.nodeId}
-              className={p.constant ? 'wave-line constant' : 'wave-line'}
-              stroke={p.color}
-              points={pointsFor(nodeVoltages[p.nodeId])}
-            />
-          ))}
-        <text x={PAD + 2} y={12} className="wave-label">
-          {maxV.toFixed(1)}V
-        </text>
-        {cropped && (
-          <text x={PAD + 2} y={H - PAD - 3} className="wave-label">
-            {win.start.toFixed(2)}s
-          </text>
-        )}
-        <text x={W - PAD - 2} y={H - PAD - 3} className="wave-label" textAnchor="end">
-          {win.end.toFixed(cropped ? 2 : 1)}s
-        </text>
-      </svg>
-      <ul className="wave-legend">
-        {probes.map((p) => {
-          const off = hidden.has(p.nodeId)
-          return (
-            <li key={p.nodeId}>
-              <button
-                type="button"
-                className={`wave-legend-item${off ? ' off' : ''}${p.constant ? ' constant' : ''}`}
-                aria-pressed={!off}
-                onClick={() => onToggle(p.nodeId)}
-                title={off ? 'クリックで表示' : 'クリックで非表示'}
-              >
-                <span className="wave-swatch" style={{ background: p.color }} />
-                {p.label}
-                {p.constant ? ' (一定)' : ''}
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-    </div>
-  )
-}
 
 /**
  * 過渡解析(.tran)を on-demand 実行し、ノード電圧の時系列を折れ線表示する。
@@ -289,7 +188,7 @@ export const WaveformPanel = ({
         ) : error ? (
           <p className="error">{error}</p>
         ) : waveforms && probes.length > 0 ? (
-          <Chart
+          <WaveformChart
             waveforms={waveforms}
             probes={probes}
             hidden={hidden}
