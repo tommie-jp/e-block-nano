@@ -257,12 +257,34 @@ body {
   cursor: default;
 }
 
-/* トグルボタン: 押下(オン)状態を強調表示する。基本の見た目は各コンテナの
-   button 規則(.toolbar button / .sim-head button)から継承する */
+/* トグルボタン: オン/オフ状態を常時インジケータ(丸)で示し、オンは強調表示。
+   基本の見た目は各コンテナの button 規則から継承する */
+.toggle::before {
+  content: '';
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-dim);
+  background: transparent;
+  vertical-align: -1px;
+}
+
 .toggle[aria-pressed='true'] {
   border-color: var(--accent);
   background: var(--accent-dim);
   color: var(--accent);
+}
+
+.toggle[aria-pressed='true']::before {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 5px var(--accent);
+}
+
+.toggle:disabled::before {
+  opacity: 0.4;
 }
 
 .status {
