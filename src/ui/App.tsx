@@ -269,6 +269,7 @@ export const App = (): ReactElement => {
             hasError={hasError}
             simulator={ngspice}
             onProbes={setWaveProbes}
+            selectedBlockId={editor.selectedBlockId}
           />
         </div>
       </main>

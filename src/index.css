@@ -416,6 +416,29 @@ body {
   stroke-dasharray: 3 3;
 }
 
+/* Math (差動) トレース: 少し太めで目立たせる */
+.wave-line.math {
+  stroke-width: 2;
+}
+
+/* リファレンス波形 (編集前): 薄い破線 */
+.wave-line.reference {
+  stroke-width: 1;
+  opacity: 0.35;
+  stroke-dasharray: 5 4;
+}
+
+/* 段組み表示: 各チャンネルの基準線とラベル */
+.lane-baseline {
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1;
+}
+
+.lane-label {
+  font-size: 9px;
+  font-weight: 700;
+}
+
 .wave-label {
   fill: var(--text-dim);
   font-size: 11px;
@@ -502,10 +525,55 @@ body {
   cursor: default;
 }
 
-.cursor-readout {
+.cursor-readout,
+.math-readout {
   font-size: 12px;
   color: var(--text);
   font-variant-numeric: tabular-nums;
+}
+
+/* 振幅ズーム (V/div 相当) の −/+ */
+.gain-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.gain-control button {
+  min-width: 26px;
+  min-height: 30px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.gain-control button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 「参照を保存 / 参照クリア」ボタン */
+.wave-controls > button:not(.toggle) {
+  min-height: 34px;
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.wave-controls > button:not(.toggle):disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .cursor-line {

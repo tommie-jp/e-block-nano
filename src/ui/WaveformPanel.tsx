@@ -7,6 +7,7 @@ import type { Waveforms } from '../core/simulation/spice/mapResult'
 import type { NodeProbe } from './waveProbes'
 import { dominantOscillation, selectProbes } from './waveProbes'
 import { WaveformChart } from './scope/WaveformChart'
+import { selectedMathNodes } from './scope/mathTrace'
 
 interface WaveformPanelProps {
   netlist: Netlist
@@ -14,6 +15,8 @@ interface WaveformPanelProps {
   simulator: SimulationPort
   /** 表示中ノード (色つき) をボードに知らせる。●をノード位置に重ねる用 */
   onProbes?: (probes: NodeProbe[]) => void
+  /** 選択中ブロック。2 端子素子なら Math (両端電圧) の対象にする */
+  selectedBlockId?: string | null
 }
 
 // PoC 既定の過渡設定 (RC の τ=1s が収まる範囲)。将来サンプルごとに指定可
@@ -31,6 +34,7 @@ export const WaveformPanel = ({
   hasError,
   simulator,
   onProbes,
+  selectedBlockId,
 }: WaveformPanelProps): ReactElement => {
   const [open, setOpen] = useState(false)
   const [waveforms, setWaveforms] = useState<Waveforms | null>(null)
@@ -39,7 +43,15 @@ export const WaveformPanel = ({
   const [error, setError] = useState<string | null>(null)
   // 凡例クリックで非表示にしたノード。線もボードの●も消す
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
+  // 比較用に保存した波形 (編集前後の重畳比較)
+  const [reference, setReference] = useState<Waveforms | null>(null)
   const audioRef = useRef<AudioContext | null>(null)
+
+  // 選択中 2 端子素子の両端ノード (Math 差動の対象)
+  const mathNodes = useMemo(
+    () => selectedMathNodes(netlist, selectedBlockId),
+    [netlist, selectedBlockId],
+  )
 
   const analysis = useMemo(
     () => ({ kind: 'tran' as const, step: TRAN_STEP, stop: TRAN_STOP }),
@@ -185,6 +197,10 @@ export const WaveformPanel = ({
           probes={probes}
           hidden={hidden}
           onToggle={toggleHidden}
+          mathNodes={mathNodes}
+          reference={reference}
+          onSaveReference={() => setReference(waveforms)}
+          onClearReference={() => setReference(null)}
           status={
             hasError
               ? '⚠ 回路を修正してください'

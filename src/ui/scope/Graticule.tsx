@@ -12,12 +12,19 @@ const timeLabel = (t: number, span: number): string =>
 
 /**
  * オシロのグレーティクル: X (時間) / Y (電圧) の格子線と目盛りラベル。
- * 0V 基準線は強調して描く。
+ * 0V 基準線は強調して描く。段組み表示では Y (電圧) 軸が意味を持たないので
+ * showY=false で X (時間) のみ描く。
  */
-export const Graticule = ({ scales }: { scales: Scales }): ReactElement => {
+export const Graticule = ({
+  scales,
+  showY = true,
+}: {
+  scales: Scales
+  showY?: boolean
+}): ReactElement => {
   const { plot, win, yRange } = scales
   const xTicks = niceTicks(win.start, win.end, X_TICKS)
-  const yTicks = niceTicks(yRange.min, yRange.max, Y_TICKS)
+  const yTicks = showY ? niceTicks(yRange.min, yRange.max, Y_TICKS) : []
   const span = win.end - win.start
 
   return (
@@ -54,9 +61,11 @@ export const Graticule = ({ scales }: { scales: Scales }): ReactElement => {
         )
       })}
       {/* 単位 */}
-      <text x={plot.left - 6} y={plot.top - 2} className="grat-unit" textAnchor="end">
-        V
-      </text>
+      {showY && (
+        <text x={plot.left - 6} y={plot.top - 2} className="grat-unit" textAnchor="end">
+          V
+        </text>
+      )}
       <text x={plot.right} y={plot.bottom + 14} className="grat-unit" textAnchor="end">
         s
       </text>
