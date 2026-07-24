@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, ReactElement } from 'react'
 import { lintCircuit } from '../core/lint/lintCircuit'
 import { buildNetlist } from '../core/netlist/build'
@@ -15,11 +15,13 @@ import { createNgspiceSimulator } from '../io/ngspiceSimulator'
 import { deserializeBoard } from '../core/persistence/boardFile'
 import { getSample, SAMPLE_CIRCUITS } from '../fixtures/circuits/samples'
 import { BoardView } from './BoardView'
+import { HeaderMenu } from './HeaderMenu'
 import { PartsPalette } from './PartsPalette'
 import { SimulatorPanel } from './SimulatorPanel'
 import type { LiveCurrents } from './useCircuitJsLive'
 import type { NodeProbe } from './waveProbes'
 import { WaveformPanel } from './WaveformPanel'
+import { LiveScopePanel } from './scope/LiveScopePanel'
 
 const errorMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e)
@@ -36,6 +38,22 @@ export const App = (): ReactElement => {
   const [simulating, setSimulating] = useState(false)
   const ngspice = useMemo(() => createNgspiceSimulator(), [])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const mainRef = useRef<HTMLElement>(null)
+
+  // パレットの高さをボード(.board)に揃える。ボード高さはウィンドウ幅/高さで
+  // 動的に変わる(アスペクト比 or max-height の小さい方)ので、実測値を CSS 変数
+  // --board-h に反映し、パレットは height:var(--board-h) で同じ高さになる。
+  useLayoutEffect(() => {
+    const main = mainRef.current
+    const boardEl = main?.querySelector('.board')
+    if (!main || !boardEl) return
+    const ro = new ResizeObserver(() => {
+      const h = boardEl.getBoundingClientRect().height
+      main.style.setProperty('--board-h', `${h}px`)
+    })
+    ro.observe(boardEl)
+    return () => ro.disconnect()
+  }, [])
 
   const handleSave = (): void => {
     try {
@@ -145,51 +163,86 @@ export const App = (): ReactElement => {
   return (
     <div className="app">
       <header className="header">
-        <h1>
-          e-block-nano PoC <span className="app-version">v{__APP_VERSION__}</span>
-        </h1>
+        <div className="header-bar">
+          <HeaderMenu>
+            {(close) => (
+              <div className="file-actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSave()
+                    close()
+                  }}
+                >
+                  保存
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleLoad()
+                    close()
+                  }}
+                >
+                  読込
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadBoard(editor.board)
+                    close()
+                  }}
+                >
+                  エクスポート
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    fileInputRef.current?.click()
+                    close()
+                  }}
+                >
+                  インポート
+                </button>
+                <select
+                  className="sample-select"
+                  defaultValue=""
+                  onChange={(e) => {
+                    handleSampleSelect(e)
+                    close()
+                  }}
+                  aria-label="サンプル回路を読み込む"
+                >
+                  <option value="" disabled>
+                    サンプル回路…
+                  </option>
+                  {SAMPLE_CIRCUITS.map((s) => (
+                    <option key={s.id} value={s.id} title={s.description}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </HeaderMenu>
+          <img className="app-icon" src="/favicon.svg" alt="" width={28} height={27} />
+          <h1>
+            e-block-nano PoC{' '}
+            <span className="app-version">v{__APP_VERSION__}</span>
+          </h1>
+        </div>
         <p className="hint">
           パーツを選んでセルをクリックで配置 / ドラッグで移動 / クリックで選択 /
           R で回転 / C でスイッチ切替 / Delete で削除
         </p>
-        <div className="file-actions">
-          <button type="button" onClick={handleSave}>
-            保存
-          </button>
-          <button type="button" onClick={handleLoad}>
-            読込
-          </button>
-          <button type="button" onClick={() => downloadBoard(editor.board)}>
-            エクスポート
-          </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()}>
-            インポート
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={handleImport}
-          />
-          <select
-            className="sample-select"
-            defaultValue=""
-            onChange={handleSampleSelect}
-            aria-label="サンプル回路を読み込む"
-          >
-            <option value="" disabled>
-              サンプル回路…
-            </option>
-            {SAMPLE_CIRCUITS.map((s) => (
-              <option key={s.id} value={s.id} title={s.description}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={handleImport}
+        />
       </header>
-      <main className="main">
+      <main className="main" ref={mainRef}>
         <PartsPalette
           selectedPartId={editor.selectedPartId}
           onSelect={editor.selectPart}
@@ -266,15 +319,19 @@ export const App = (): ReactElement => {
             hasError={hasError}
             onCurrents={setLiveCurrents}
           />
-          <WaveformPanel
-            netlist={netlist}
-            hasError={hasError}
-            simulator={ngspice}
-            onProbes={setWaveProbes}
-            selectedBlockId={editor.selectedBlockId}
-          />
         </div>
       </main>
+      {/* オシロは複数枚に増えるので、ボード配置を潰さないようページ後半に全幅で置く */}
+      <div className="wave-section">
+        <WaveformPanel
+          netlist={netlist}
+          hasError={hasError}
+          simulator={ngspice}
+          onProbes={setWaveProbes}
+          selectedBlockId={editor.selectedBlockId}
+        />
+        <LiveScopePanel netlist={netlist} title="ライブオシロ (ngspice 連続)" />
+      </div>
     </div>
   )
 }

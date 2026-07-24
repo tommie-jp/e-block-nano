@@ -26,5 +26,11 @@ dist-ssr
 # CircuitJS1 engine (GPLv2, fetched separately, not committed)
 public/circuitjs/
 
+# libngspice WASM (self-built via tools/build-ngspice, not committed — large binary)
+src/io/ngspice/libngspice.wasm
+src/io/ngspice/libngspice.mjs
+# libngspice build workspace (cloned ngspice source)
+tools/build-ngspice/.work/
+
 # Playwright MCP artifacts
 .playwright-mcp/

@@ -6,6 +6,7 @@ const spice: SpiceNetlist = {
   text: '',
   nodeNames: { 'H:1,0': '0', 'H:0,0': 'n1', 'H:2,1': 'n2' },
   currentProbes: { 'blk-battery': 'i(v1)', 'blk-led': 'i(vmd1)' },
+  deviceRefs: { 'blk-battery': 'v1' },
 }
 
 describe('mapSpiceResult', () => {

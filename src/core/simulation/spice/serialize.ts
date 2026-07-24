@@ -39,6 +39,11 @@ export interface SpiceNetlist {
   readonly nodeNames: Readonly<Record<string, string>>
   /** blockId → 素子電流を読む SPICE 変数名 (ngspice 表記の小文字, 例 'i(v1)') */
   readonly currentProbes: Readonly<Record<string, string>>
+  /**
+   * blockId → 値変更できる素子の SPICE 参照名 (小文字, 例 'r1'/'c1'/'v1')。
+   * ライブストリームの `alter <ref> = <value>` 宛先。R/C/V(スイッチ含む)のみ。
+   */
+  readonly deviceRefs: Readonly<Record<string, string>>
 }
 
 /**
@@ -66,10 +71,11 @@ export const toSpice = (
 
   const lines: string[] = ['e-block-nano circuit']
   const currentProbes: Record<string, string> = {}
+  const deviceRefs: Record<string, string> = {}
   const seq = { V: 0, R: 0, D: 0, C: 0, Q: 0 }
 
   for (const e of netlist.elements) {
-    emitElement(e, lines, currentProbes, seq, nodeName)
+    emitElement(e, lines, currentProbes, deviceRefs, seq, nodeName)
   }
 
   // 使われている素子種に応じてモデルを付ける
@@ -93,16 +99,17 @@ export const toSpice = (
     lines.push(`.tran ${analysis.step} ${analysis.stop} uic`)
   }
   lines.push('.end')
-  return { text: lines.join('\n'), nodeNames, currentProbes }
+  return { text: lines.join('\n'), nodeNames, currentProbes, deviceRefs }
 }
 
 type Seq = { V: number; R: number; D: number; C: number; Q: number }
 
-/** 1 素子を SPICE 行に足し、電流プローブを登録する */
+/** 1 素子を SPICE 行に足し、電流プローブ・alter 用デバイス参照を登録する */
 const emitElement = (
   e: Element,
   lines: string[],
   probes: Record<string, string>,
+  deviceRefs: Record<string, string>,
   seq: Seq,
   nodeName: (id: string) => string,
 ): void => {
@@ -113,19 +120,26 @@ const emitElement = (
       const ref = `V${++seq.V}`
       lines.push(`${ref} ${node('plus')} ${node('minus')} DC ${d.volts}`)
       probes[e.blockId] = `i(${ref.toLowerCase()})`
+      deviceRefs[e.blockId] = ref.toLowerCase()
       return
     }
     case 'resistor': {
-      lines.push(`R${++seq.R} ${node('a')} ${node('b')} ${d.ohms}`)
+      const ref = `R${++seq.R}`
+      lines.push(`${ref} ${node('a')} ${node('b')} ${d.ohms}`)
+      deviceRefs[e.blockId] = ref.toLowerCase()
       return
     }
     case 'switch': {
+      const ref = `R${++seq.R}`
       const ohms = e.state?.closed ? SWITCH_CLOSED_OHMS : SWITCH_OPEN_OHMS
-      lines.push(`R${++seq.R} ${node('a')} ${node('b')} ${ohms}`)
+      lines.push(`${ref} ${node('a')} ${node('b')} ${ohms}`)
+      deviceRefs[e.blockId] = ref.toLowerCase()
       return
     }
     case 'capacitor': {
-      lines.push(`C${++seq.C} ${node('a')} ${node('b')} ${d.farads}`)
+      const ref = `C${++seq.C}`
+      lines.push(`${ref} ${node('a')} ${node('b')} ${d.farads}`)
+      deviceRefs[e.blockId] = ref.toLowerCase()
       return
     }
     case 'led':

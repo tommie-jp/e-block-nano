@@ -40,6 +40,16 @@ describe('toSpice', () => {
     expect(probeVars.some((v) => /^i\(vmd\d+\)$/.test(v))).toBe(true) // LED
   })
 
+  test('registers alterable device refs (R/V) for live alter', () => {
+    const { deviceRefs } = toSpice(fixtureNetlist())
+    const refs = Object.values(deviceRefs)
+    // 抵抗 or スイッチ(抵抗置換) → r<k>、電池 → v<k>
+    expect(refs.some((r) => /^r\d+$/.test(r))).toBe(true)
+    expect(refs.some((r) => /^v\d+$/.test(r))).toBe(true)
+    // blockId をキーに素子参照が引ける (alter の宛先)
+    expect(Object.keys(deviceRefs).length).toBeGreaterThan(0)
+  })
+
   test('switch resistance reflects open/closed state', () => {
     const openBoard = deserializeBoard(JSON.stringify(fixture))
     const switchId = openBoard.placements.find(

@@ -16,11 +16,15 @@ import { triggerTime } from './trigger'
 import type { Slope } from './trigger'
 import { XYPlot } from './XYPlot'
 import { FftPlot } from './FftPlot'
+import { DEFAULT_SWEEP_SECONDS, revealedSamples, sampleAt, sweepHeadTime } from './sweep'
+import { useSweep } from './useSweep'
 
 // 描画点の上限。過渡は適応ステップで数万点になる (マルチバイブレータ ~5万点)
 const MAX_POINTS = 1000
 const MATH_COLOR = '#ffffff'
 const GAINS = [0.5, 1, 2, 4, 8]
+// 掃引 1 周にかける壁時計秒。ベンチ DSO の掃引速度つまみ相当 (速い→遅い)
+const SWEEP_SECONDS = [0.5, 1, DEFAULT_SWEEP_SECONDS, 4]
 
 type View = 'time' | 'xy' | 'fft'
 
@@ -44,6 +48,11 @@ interface WaveformChartProps {
   reference?: Waveforms | null
   onSaveReference?: () => void
   onClearReference?: () => void
+  /** このオシロ画面の見出し (例: "オシロ 1")。複数画面のときに表示 */
+  title?: string
+  /** ヘッダの × でこの画面を閉じられるか (最後の 1 枚は閉じさせない) */
+  canRemove?: boolean
+  onRemove?: () => void
 }
 
 const fmtT = (t: number): string =>
@@ -81,6 +90,9 @@ export const WaveformChart = ({
   reference,
   onSaveReference,
   onClearReference,
+  title,
+  canRemove = false,
+  onRemove,
 }: WaveformChartProps): ReactElement => {
   const svgRef = useRef<SVGSVGElement>(null)
   const hasData = waveforms != null && probes.length > 0
@@ -91,6 +103,8 @@ export const WaveformChart = ({
   const [ac, setAc] = useState(false)
   const [trigOn, setTrigOn] = useState(false)
   const [trigSlope, setTrigSlope] = useState<Slope>('rising')
+  const [sweepOn, setSweepOn] = useState(false)
+  const [sweepSec, setSweepSec] = useState(DEFAULT_SWEEP_SECONDS)
   const [cursorsOn, setCursorsOn] = useState(false)
   const [cursor, setCursor] = useState<CursorState>({ tA: 0, tB: 0, vA: 0, vB: 0 })
   const [dragging, setDragging] = useState<CursorId | null>(null)
@@ -155,6 +169,12 @@ export const WaveformChart = ({
   }, [hasData, waveforms, probes, ac, dc])
 
   const scales = useMemo(() => makeScales(win, yRange), [win, yRange])
+
+  // 掃引輝点: 時間ビューでのみ。演算(ngspice)とは無関係に 60fps で位相を進め、
+  // 取得済み波形を左→右へ掃引再生する (DSO の掃引を模す)
+  const sweeping = hasData && view === 'time' && sweepOn
+  const phase = useSweep(sweeping, sweepSec)
+  const tHead = sweepHeadTime(win, phase)
 
   const mathValues = useMemo(() => {
     if (!waveforms || !mathNodes) return null
@@ -240,6 +260,22 @@ export const WaveformChart = ({
     }
     return parts.join(' ')
   }
+  // 掃引ヘッドまでに現れた分だけを結ぶ polyline 文字列 (先端は tHead で締める)
+  const revealedFor = (
+    values: readonly number[],
+    yFn: (v: number) => number,
+  ): string =>
+    revealedSamples(time, values, win.start, tHead, MAX_POINTS)
+      .map(([t, v]) => `${scales.x(t)},${yFn(v)}`)
+      .join(' ')
+  // 掃引ヘッド (輝点) の座標。範囲外なら null
+  const headPoint = (
+    values: readonly number[],
+    yFn: (v: number) => number,
+  ): { x: number; y: number } | null => {
+    const v = sampleAt(time, values, tHead)
+    return v == null ? null : { x: scales.x(tHead), y: yFn(v) }
+  }
   const stackedY = (lane: { cy: number; half: number }, values: readonly number[]) => {
     const { lo, hi } = range(values)
     const mid = (lo + hi) / 2
@@ -283,6 +319,22 @@ export const WaveformChart = ({
 
   return (
     <div className="wave-wrap">
+      {title && (
+        <div className="scope-head">
+          <span className="scope-title">{title}</span>
+          {canRemove && (
+            <button
+              type="button"
+              className="scope-remove"
+              onClick={onRemove}
+              aria-label={`${title} を閉じる`}
+              title="この画面を閉じる"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      )}
       <svg
         ref={svgRef}
         className="waveform"
@@ -314,6 +366,8 @@ export const WaveformChart = ({
           traces.map((t, i) => {
             if (stacked) {
               const lane = laneBand(i, traces.length, scales.plot)
+              const yFn = stackedY(lane, t.values)
+              const head = sweeping ? headPoint(t.values, yFn) : null
               return (
                 <g key={t.key}>
                   <line
@@ -331,11 +385,32 @@ export const WaveformChart = ({
                   >
                     {t.label}
                   </text>
+                  {sweeping && (
+                    <polyline
+                      className="wave-line sweep-bg"
+                      stroke={t.color}
+                      points={pointsFor(time, t.values, yFn)}
+                    />
+                  )}
                   <polyline
                     className="wave-line"
                     stroke={t.color}
-                    points={pointsFor(time, t.values, stackedY(lane, t.values))}
+                    points={
+                      sweeping
+                        ? revealedFor(t.values, yFn)
+                        : pointsFor(time, t.values, yFn)
+                    }
                   />
+                  {head && (
+                    <circle
+                      className="sweep-dot"
+                      cx={head.x}
+                      cy={head.y}
+                      r={3}
+                      fill={t.color}
+                      style={{ color: t.color }}
+                    />
+                  )}
                 </g>
               )
             }
@@ -345,13 +420,36 @@ export const WaveformChart = ({
                 : t.constant
                   ? 'wave-line constant'
                   : 'wave-line'
+            const head = sweeping ? headPoint(t.values, scales.y) : null
             return (
-              <polyline
-                key={t.key}
-                className={cls}
-                stroke={t.color}
-                points={pointsFor(time, t.values, scales.y)}
-              />
+              <g key={t.key}>
+                {sweeping && (
+                  <polyline
+                    className={`${cls} sweep-bg`}
+                    stroke={t.color}
+                    points={pointsFor(time, t.values, scales.y)}
+                  />
+                )}
+                <polyline
+                  className={cls}
+                  stroke={t.color}
+                  points={
+                    sweeping
+                      ? revealedFor(t.values, scales.y)
+                      : pointsFor(time, t.values, scales.y)
+                  }
+                />
+                {head && (
+                  <circle
+                    className="sweep-dot"
+                    cx={head.x}
+                    cy={head.y}
+                    r={3}
+                    fill={t.color}
+                    style={{ color: t.color }}
+                  />
+                )}
+              </g>
             )
           })}
 
@@ -516,6 +614,30 @@ export const WaveformChart = ({
               aria-label="トリガのスロープ"
             >
               {trigSlope === 'rising' ? '↑' : '↓'}
+            </button>
+          )}
+          <button
+            type="button"
+            className="toggle"
+            aria-pressed={sweepOn}
+            disabled={!hasData}
+            onClick={() => setSweepOn((v) => !v)}
+            title="取得済み波形を左→右へ掃引再生 (輝点がなぞる)"
+          >
+            掃引
+          </button>
+          {sweepOn && (
+            <button
+              type="button"
+              onClick={() =>
+                setSweepSec(
+                  (s) => SWEEP_SECONDS[(SWEEP_SECONDS.indexOf(s) + 1) % SWEEP_SECONDS.length],
+                )
+              }
+              aria-label="掃引速度"
+              title="掃引 1 周の秒数"
+            >
+              {sweepSec}s/掃引
             </button>
           )}
           <button

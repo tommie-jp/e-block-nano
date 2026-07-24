@@ -31,14 +31,30 @@ body {
 .app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  /* ページはコンテンツで伸びてよい (オシロ複数枚を後半にスクロールで置くため)。
+     ボード側の行 (.main) は先頭画面に収まるよう別途 100dvh 上限をかける */
+  min-height: 100vh;
+  min-height: 100dvh;
   padding: 12px 16px;
   /* ノッチ端末のセーフエリアを尊重 (viewport-fit=cover 前提) */
   padding-left: max(16px, env(safe-area-inset-left));
   padding-right: max(16px, env(safe-area-inset-right));
   padding-bottom: max(12px, env(safe-area-inset-bottom));
   gap: 10px;
+}
+
+/* タイトル上段: ハンバーガー / アプリアイコン / タイトル を横並び */
+.header-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-icon {
+  flex: 0 0 auto;
+  display: block;
+  width: 28px;
+  height: auto;
 }
 
 .header h1 {
@@ -64,13 +80,19 @@ body {
 .main {
   display: flex;
   gap: 14px;
-  flex: 1;
+  /* 先頭画面のボード行はコンテンツなりの高さ (フレックスで縦に潰さない)。
+     ボード自体は .board の max-height で 1 画面に収める */
+  flex: 0 0 auto;
   min-height: 0;
 }
 
 /* --- パレット --- */
 .palette {
   width: 220px;
+  /* 縦いっぱいに伸ばさず、高さはボード(.board)に合わせる。
+     --board-h は App が ResizeObserver でボード実測高を反映する */
+  align-self: flex-start;
+  height: var(--board-h, auto);
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--border);
@@ -106,8 +128,8 @@ body {
 }
 
 .palette-item svg {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
 }
 
 @media (hover: hover) {
@@ -139,6 +161,8 @@ body {
 .board {
   width: 100%;
   max-height: calc(100vh - 170px);
+  /* 兄弟要素が増えても縦に潰れないよう固定 (常に同じ大きさで表示) */
+  flex: none;
   background: #20323e;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -205,12 +229,51 @@ body {
   pointer-events: none;
 }
 
-/* --- ツールバー --- */
+/* --- ハンバーガーメニュー --- */
+.header-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.menu-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+@media (hover: hover) {
+  .menu-button:hover {
+    border-color: var(--accent);
+  }
+}
+
+/* ハンバーガーから開くドロップダウンパネル */
+.menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+}
+
 .file-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 160px;
 }
 
 .file-actions button {
@@ -222,6 +285,7 @@ body {
   min-height: 40px;
   cursor: pointer;
   font-size: 13px;
+  text-align: left;
   touch-action: manipulation;
 }
 
@@ -462,6 +526,16 @@ body {
   stroke-dasharray: 5 4;
 }
 
+/* 掃引モード: 未掃引の全波形をうっすら残像として敷く (掃引輝線が上に伸びる) */
+.wave-line.sweep-bg {
+  opacity: 0.18;
+}
+
+/* 掃引ヘッドの輝点。グローで先端を目立たせる */
+.sweep-dot {
+  filter: drop-shadow(0 0 3px currentColor);
+}
+
 /* 段組み表示: 各チャンネルの基準線とラベル */
 .lane-baseline {
   stroke: rgba(255, 255, 255, 0.16);
@@ -498,11 +572,88 @@ body {
   font-size: 11px;
 }
 
+/* 波形パネルはボード行 (.main) の下に全幅で置く。オシロが増えても
+   ボード配置は先頭画面のまま、オシロはページ後半へスクロールで伸びる */
+.wave-section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+/* 複数オシロ画面を縦に積む入れ物 */
+.scope-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* 各画面の 1 枚は枠で囲って境界を分かりやすく */
 .wave-wrap {
   display: flex;
   flex-direction: column;
   gap: 6px;
   max-width: 600px;
+}
+
+.scope-stack .wave-wrap {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* 画面の見出し行 (タイトル + 閉じる) */
+.scope-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.scope-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+
+.scope-remove {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 6px;
+  width: 26px;
+  height: 26px;
+  line-height: 1;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.scope-remove:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+}
+
+/* 画面追加ボタン */
+.scope-add {
+  align-self: flex-start;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  min-height: 38px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.scope-add:hover:not(:disabled) {
+  border-style: solid;
+  border-color: var(--text-dim);
+}
+
+.scope-add:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* 凡例: 色スウォッチ + ノードラベル。ボード上の●と色/ラベルが一致する */
@@ -774,6 +925,9 @@ body {
   .palette {
     order: 2;
     width: 100%;
+    /* 縦積みのストリップ表示では高さ固定(--board-h)を解除して内容なりにする */
+    height: auto;
+    align-self: auto;
     flex: 0 0 auto;
     overflow-x: auto;
     overflow-y: hidden;

@@ -6,7 +6,7 @@ import { isLit } from '../core/simulation/spice/interpret'
 import { CELL_SIZE } from './constants'
 
 const C = CELL_SIZE / 2 // 中心座標
-const EDGE_INSET = 7 // ブロック外形のセル縁からの引き込み
+const EDGE_INSET = 10 // ブロック外形のセル縁からの引き込み (大きいほどブロックが小さく見える)
 const STUB_LEN = 12 // 端子スタブの長さ
 
 /** 辺中央 (接点) のローカル座標 */

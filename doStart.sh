@@ -62,6 +62,62 @@ wait_for_port() {
   return 1
 }
 
+# 指定 TCP ポートを LISTEN しているプロセスの PID を列挙 (lsof→ss→fuser の順)
+pids_on_port() {
+  local p="$1"
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -ti "tcp:$p" -sTCP:LISTEN 2>/dev/null || true
+  elif command -v ss >/dev/null 2>&1; then
+    ss -ltnpH "sport = :$p" 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u || true
+  elif command -v fuser >/dev/null 2>&1; then
+    fuser "$p/tcp" 2>/dev/null | tr -s ' ' '\n' | grep -E '^[0-9]+$' || true
+  fi
+}
+
+# ポート占有時: 占有プロセスを表示し、KILL してよいかユーザに確認する。
+# 承諾なし / 非対話時 / 解放失敗時は中止する。
+ensure_port_free() {
+  local p="$1" pids ans i
+  pids="$(pids_on_port "$p")"
+  [[ -z "$pids" ]] && return 0
+
+  echo "警告: ポート ${p} は既に使用されています。占有プロセス:" >&2
+  # shellcheck disable=SC2046
+  ps -o pid,ppid,user,args -p $(echo "$pids" | paste -sd, -) 2>/dev/null | sed 's/^/  /' >&2 || true
+
+  ans=""
+  read -r -p "これらのプロセスを KILL してポート ${p} を解放しますか? (yes/no?) [既定: no] " ans </dev/tty 2>/dev/null || ans=""
+  case "$ans" in
+    y | Y | yes | YES | Yes) ;;
+    *)
+      echo "中止しました。ポート ${p} を解放してから再実行してください。" >&2
+      exit 1
+      ;;
+  esac
+
+  # まず TERM、~5s 待って残れば KILL
+  echo "$pids" | xargs -r kill -TERM 2>/dev/null || true
+  for i in $(seq 1 20); do
+    pids="$(pids_on_port "$p")"
+    [[ -z "$pids" ]] && break
+    sleep 0.25
+  done
+  if [[ -n "$pids" ]]; then
+    echo "TERM で終了しないため KILL します: $(echo "$pids" | paste -sd' ' -)" >&2
+    echo "$pids" | xargs -r kill -KILL 2>/dev/null || true
+    sleep 0.5
+  fi
+
+  if [[ -n "$(pids_on_port "$p")" ]]; then
+    echo "エラー: ポート ${p} を解放できませんでした。" >&2
+    exit 1
+  fi
+  echo "ポート ${p} を解放しました。" >&2
+}
+
+# vite 起動前に dev ポートの占有を確認 (占有時は確認のうえ KILL)
+ensure_port_free "$PORT"
+
 if [[ "$USE_HTTPS" -eq 0 ]]; then
   # ---- --http: HTTP で Tailscale インターフェースにバインド ----
   echo "=================================================================="

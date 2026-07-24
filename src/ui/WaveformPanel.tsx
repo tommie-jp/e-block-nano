@@ -8,6 +8,15 @@ import type { NodeProbe } from './waveProbes'
 import { dominantOscillation, selectProbes } from './waveProbes'
 import { WaveformChart } from './scope/WaveformChart'
 import { selectedMathNodes } from './scope/mathTrace'
+import type { Scope } from './scope/scopes'
+import {
+  appendScope,
+  makeScope,
+  removeScope,
+  unionVisibleIds,
+  withHiddenToggled,
+  withReference,
+} from './scope/scopes'
 
 interface WaveformPanelProps {
   netlist: Netlist
@@ -44,10 +53,11 @@ export const WaveformPanel = ({
   const [progress, setProgress] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // 凡例クリックで非表示にしたノード。線もボードの●も消す
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
-  // 比較用に保存した波形 (編集前後の重畳比較)
-  const [reference, setReference] = useState<Waveforms | null>(null)
+  // オシロ画面のリスト。各画面はチャンネル選択(hidden)・参照波形を独立に持つ。
+  // .tran の計算結果 (waveforms) は全画面で共有する (計算は 1 回きり)。
+  const [scopes, setScopes] = useState<Scope[]>(() => [makeScope('scope-1')])
+  // 画面追加のたびに増える連番 (安定した key と見出し用)
+  const seqRef = useRef(1)
   const audioRef = useRef<AudioContext | null>(null)
 
   // 選択中 2 端子素子の両端ノード (Math 差動の対象)
@@ -65,24 +75,37 @@ export const WaveformPanel = ({
   const active = open && !hasError ? waveforms : null
   // 表示中のノード (色つき)。パネルを閉じていれば空 → ボードの●も消える
   const probes = useMemo(() => (active ? selectProbes(active) : []), [active])
-  // ボードの●は「見えている線」だけに合わせる (非表示は●も消す)
-  const visibleProbes = useMemo(
-    () => probes.filter((p) => !hidden.has(p.nodeId)),
-    [probes, hidden],
-  )
+  // ボードの●は「どれか 1 画面にでも映っているノード」に合わせる (全画面で非表示なら消す)
+  const visibleProbes = useMemo(() => {
+    const shown = new Set(unionVisibleIds(scopes, probes.map((p) => p.nodeId)))
+    return probes.filter((p) => shown.has(p.nodeId))
+  }, [probes, scopes])
   useEffect(() => {
     onProbes?.(visibleProbes)
   }, [visibleProbes, onProbes])
   // アンマウント時はボードの●を消す
   useEffect(() => () => onProbes?.([]), [onProbes])
 
-  const toggleHidden = (nodeId: string): void =>
-    setHidden((prev) => {
-      const next = new Set(prev)
-      if (next.has(nodeId)) next.delete(nodeId)
-      else next.add(nodeId)
-      return next
+  // --- オシロ画面の操作 (すべて immutable に scopes を更新) ---
+  const toggleHidden = (scopeId: string, nodeId: string): void =>
+    setScopes((list) =>
+      list.map((s) => (s.id === scopeId ? withHiddenToggled(s, nodeId) : s)),
+    )
+  const saveReference = (scopeId: string): void =>
+    setScopes((list) =>
+      list.map((s) => (s.id === scopeId ? withReference(s, waveforms) : s)),
+    )
+  const clearReference = (scopeId: string): void =>
+    setScopes((list) =>
+      list.map((s) => (s.id === scopeId ? withReference(s, null) : s)),
+    )
+  const addScope = (): void =>
+    setScopes((list) => {
+      seqRef.current += 1
+      return appendScope(list, `scope-${seqRef.current}`)
     })
+  const removeScopeById = (scopeId: string): void =>
+    setScopes((list) => (list.length > 1 ? removeScope(list, scopeId) : list))
 
   const stopAudio = (): void => {
     audioRef.current?.close().catch(() => {})
@@ -210,28 +233,45 @@ export const WaveformPanel = ({
         <span className="sim-note">ngspice .tran でノード電圧の時間変化</span>
       </div>
       {open && (
-        <WaveformChart
-          waveforms={active}
-          probes={probes}
-          hidden={hidden}
-          onToggle={toggleHidden}
-          mathNodes={mathNodes}
-          reference={reference}
-          onSaveReference={() => setReference(waveforms)}
-          onClearReference={() => setReference(null)}
-          progress={busy ? progress : null}
-          status={
-            hasError
-              ? '⚠ 回路を修正してください'
-              : busy
-                ? `${waveforms ? '計算中' : 'ngspice を準備中'}… ${progress}%`
-                : error
-                  ? error
-                  : active && probes.length === 0
-                    ? '変化するノードがありません'
-                    : null
-          }
-        />
+        <div className="scope-stack">
+          {scopes.map((s, i) => (
+            <WaveformChart
+              key={s.id}
+              title={`オシロ ${i + 1}`}
+              canRemove={scopes.length > 1}
+              onRemove={() => removeScopeById(s.id)}
+              waveforms={active}
+              probes={probes}
+              hidden={new Set(s.hidden)}
+              onToggle={(nodeId) => toggleHidden(s.id, nodeId)}
+              mathNodes={mathNodes}
+              reference={s.reference}
+              onSaveReference={() => saveReference(s.id)}
+              onClearReference={() => clearReference(s.id)}
+              progress={busy ? progress : null}
+              status={
+                hasError
+                  ? '⚠ 回路を修正してください'
+                  : busy
+                    ? `${waveforms ? '計算中' : 'ngspice を準備中'}… ${progress}%`
+                    : error
+                      ? error
+                      : active && probes.length === 0
+                        ? '変化するノードがありません'
+                        : null
+              }
+            />
+          ))}
+          <button
+            type="button"
+            className="scope-add"
+            onClick={addScope}
+            disabled={!active}
+            title="同じ波形をもう 1 画面に表示し、チャンネルを振り分けられます"
+          >
+            ＋ オシロ画面を追加
+          </button>
+        </div>
       )}
     </section>
   )
