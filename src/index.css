@@ -411,11 +411,27 @@ body {
   stroke-width: 1.5;
 }
 
-/* 準備中/計算中/エラー等を空オシロの中央に重ねる */
+/* 準備中/計算中/エラー等を空オシロの中央に、大きく背景付きで重ねる */
 .wave-overlay {
-  fill: var(--text-dim);
-  font-size: 13px;
+  fill: var(--accent);
+  font-size: 22px;
+  font-weight: 700;
   dominant-baseline: middle;
+}
+
+.wave-overlay.error {
+  fill: var(--error);
+}
+
+.wave-overlay-bg {
+  fill: color-mix(in srgb, var(--accent) 20%, #12141a);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.wave-overlay-bg.error {
+  fill: color-mix(in srgb, var(--error) 20%, #12141a);
+  stroke: var(--error);
 }
 
 /* ほぼ一定のノード (電源レール等) は薄く・破線で描いて発振を邪魔しない */

@@ -251,6 +251,13 @@ export const WaveformChart = ({
   const dv = Math.abs(cursor.vB - cursor.vA)
   const plotCx = (scales.plot.left + scales.plot.right) / 2
   const plotCy = (scales.plot.top + scales.plot.bottom) / 2
+  // オーバーレイの色分け: 警告/失敗系は赤、準備中/計算中などは情報色
+  const statusIsError =
+    !!status &&
+    (status.startsWith('⚠') ||
+      status.includes('失敗') ||
+      status.includes('できません') ||
+      status.includes('エラー'))
   const mathMeasure =
     mathValues && waveforms ? measureSeries(waveforms.time, mathValues) : null
   const labelOf = (id: string): string =>
@@ -366,9 +373,24 @@ export const WaveformChart = ({
           <Cursors scales={scales} cursor={cursor} onGrab={grab} />
         )}
         {status && (
-          <text x={plotCx} y={plotCy} className="wave-overlay" textAnchor="middle">
-            {status}
-          </text>
+          <g>
+            <rect
+              x={scales.plot.left}
+              y={plotCy - 26}
+              width={scales.plot.width}
+              height={52}
+              rx={10}
+              className={`wave-overlay-bg${statusIsError ? ' error' : ''}`}
+            />
+            <text
+              x={plotCx}
+              y={plotCy}
+              textAnchor="middle"
+              className={`wave-overlay${statusIsError ? ' error' : ''}`}
+            >
+              {status}
+            </text>
+          </g>
         )}
       </svg>
 
