@@ -15,15 +15,18 @@ const fmtDuty = (d: number | null): string =>
   d == null ? '—' : `${(d * 100).toFixed(0)} %`
 
 /**
- * 表示中の各チャンネルの自動測定値をコンパクトな表にする。
+ * 各チャンネルの自動測定値をコンパクトな表にする。
  * 測定はフル記録 (窓ではなく全区間) で行う (周波数は周期が多いほど安定)。
+ * 高さを一定に保つため **全 ch を常時表示**し、非表示中の行は薄く見せる。
  */
 export const MeasurementTable = ({
   waveforms,
   probes,
+  hidden,
 }: {
   waveforms: Waveforms
   probes: NodeProbe[]
+  hidden: ReadonlySet<string>
 }): ReactElement | null => {
   if (probes.length === 0) return null
   return (
@@ -41,7 +44,7 @@ export const MeasurementTable = ({
         {probes.map((p) => {
           const m = measureSeries(waveforms.time, waveforms.nodeVoltages[p.nodeId])
           return (
-            <tr key={p.nodeId}>
+            <tr key={p.nodeId} className={hidden.has(p.nodeId) ? 'off' : undefined}>
               <th scope="row">
                 <span className="wave-swatch" style={{ background: p.color }} />
                 {p.label}

@@ -5,7 +5,13 @@ import type { NodeProbe } from '../waveProbes'
 import { viewWindow } from '../waveProbes'
 import { Cursors } from './Cursors'
 import type { CursorId, CursorState } from './Cursors'
-import { CHART, makeScales, voltageRange } from './geometry'
+import {
+  CHART,
+  DEFAULT_WINDOW,
+  DEFAULT_Y_RANGE,
+  makeScales,
+  voltageRange,
+} from './geometry'
 import { Graticule } from './Graticule'
 import { MeasurementTable } from './MeasurementTable'
 
@@ -13,10 +19,13 @@ import { MeasurementTable } from './MeasurementTable'
 const MAX_POINTS = 1000
 
 interface WaveformChartProps {
-  waveforms: Waveforms
+  /** null なら空のオシロ (グレーティクルのみ) を描く */
+  waveforms: Waveforms | null
   probes: NodeProbe[]
   hidden: ReadonlySet<string>
   onToggle: (nodeId: string) => void
+  /** 中央にオーバーレイ表示するメッセージ (準備中/計算中/エラー等) */
+  status?: string | null
 }
 
 const fmtT = (t: number): string =>
@@ -28,24 +37,28 @@ const fmtV = (v: number): string =>
 
 /**
  * オシロ相当の波形ビュー: グレーティクル (X/Y 目盛り) + 波形線 + カーソル +
- * 自動測定表 + 凡例。純ロジック (viewWindow/measureSeries/niceTicks) を組み合わせる。
+ * 自動測定表 + 凡例。ngspice 未準備でも空オシロを常時描く (waveforms=null)。
+ * 信号の表示/非表示で高さが変わらないよう、SVG は固定寸法・測定表は全 ch を常時表示。
  */
 export const WaveformChart = ({
   waveforms,
   probes,
   hidden,
   onToggle,
+  status,
 }: WaveformChartProps): ReactElement => {
-  const { time, nodeVoltages } = waveforms
   const svgRef = useRef<SVGSVGElement>(null)
+  const hasData = waveforms != null && probes.length > 0
 
-  const visible = useMemo(
-    () => probes.filter((p) => !hidden.has(p.nodeId)),
-    [probes, hidden],
+  const win = useMemo(
+    () => (hasData ? viewWindow(waveforms, probes) : DEFAULT_WINDOW),
+    [hasData, waveforms, probes],
   )
-  const win = useMemo(() => viewWindow(waveforms, probes), [waveforms, probes])
-  // y レンジは全プローブ (非表示含む) で固定し、トグルで縦スケールが動かないように
-  const yRange = useMemo(() => voltageRange(waveforms, probes), [waveforms, probes])
+  // y レンジは全プローブ (非表示含む) で固定 → トグルで縦スケールが動かない
+  const yRange = useMemo(
+    () => (hasData ? voltageRange(waveforms, probes) : DEFAULT_Y_RANGE),
+    [hasData, waveforms, probes],
+  )
   const scales = useMemo(() => makeScales(win, yRange), [win, yRange])
 
   // --- カーソル (既定オフ) ---
@@ -93,7 +106,8 @@ export const WaveformChart = ({
   }
   const endDrag = (): void => setDragging(null)
 
-  // 表示窓内の添字範囲 (time は昇順)
+  // 表示窓内の添字範囲 (time は昇順)。データが無ければ描かない
+  const time = waveforms?.time ?? []
   let i0 = 0
   while (i0 < time.length && time[i0] < win.start) i0++
   const stride = Math.max(1, Math.ceil((time.length - i0) / MAX_POINTS))
@@ -107,6 +121,8 @@ export const WaveformChart = ({
 
   const dt = Math.abs(cursor.tB - cursor.tA)
   const dv = Math.abs(cursor.vB - cursor.vA)
+  const plotCx = (scales.plot.left + scales.plot.right) / 2
+  const plotCy = (scales.plot.top + scales.plot.bottom) / 2
 
   return (
     <div className="wave-wrap">
@@ -119,15 +135,25 @@ export const WaveformChart = ({
         onPointerUp={endDrag}
       >
         <Graticule scales={scales} />
-        {visible.map((p) => (
-          <polyline
-            key={p.nodeId}
-            className={p.constant ? 'wave-line constant' : 'wave-line'}
-            stroke={p.color}
-            points={pointsFor(nodeVoltages[p.nodeId])}
-          />
-        ))}
-        {cursorsOn && <Cursors scales={scales} cursor={cursor} onGrab={grab} />}
+        {hasData &&
+          probes
+            .filter((p) => !hidden.has(p.nodeId))
+            .map((p) => (
+              <polyline
+                key={p.nodeId}
+                className={p.constant ? 'wave-line constant' : 'wave-line'}
+                stroke={p.color}
+                points={pointsFor(waveforms.nodeVoltages[p.nodeId])}
+              />
+            ))}
+        {cursorsOn && hasData && (
+          <Cursors scales={scales} cursor={cursor} onGrab={grab} />
+        )}
+        {status && (
+          <text x={plotCx} y={plotCy} className="wave-overlay" textAnchor="middle">
+            {status}
+          </text>
+        )}
       </svg>
 
       <div className="wave-controls">
@@ -135,11 +161,12 @@ export const WaveformChart = ({
           type="button"
           className="toggle"
           aria-pressed={cursorsOn}
+          disabled={!hasData}
           onClick={() => (cursorsOn ? setCursorsOn(false) : enableCursors())}
         >
           カーソル
         </button>
-        {cursorsOn && (
+        {cursorsOn && hasData && (
           <span className="cursor-readout">
             Δt = {fmtT(dt)}
             {dt > 0 && <> / 1/Δt = {fmtHz(1 / dt)}</>} &nbsp; ΔV = {fmtV(dv)}
@@ -168,7 +195,9 @@ export const WaveformChart = ({
         })}
       </ul>
 
-      <MeasurementTable waveforms={waveforms} probes={visible} />
+      {hasData && (
+        <MeasurementTable waveforms={waveforms} probes={probes} hidden={hidden} />
+      )}
     </div>
   )
 }

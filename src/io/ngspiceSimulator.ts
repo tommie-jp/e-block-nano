@@ -35,51 +35,65 @@ export const createNgspiceSimulator = (): SimulationPort => {
     return enginePromise
   }
 
+  // 単一エンジンを共有するため、setNetList → runSim の対を直列化する。
+  // 動作点(App の LED 電流)と過渡(波形パネル)が同時に走ると runSim が競合し
+  // 応答が返らなくなる。前の実行の完了を待ってから次を流す。
+  let queue: Promise<unknown> = Promise.resolve()
+  const serialize = <T>(job: () => Promise<T>): Promise<T> => {
+    const run = queue.then(job, job)
+    queue = run.catch(() => {})
+    return run
+  }
+
+  const runOne = async (
+    netlist: Netlist,
+    analysis: Analysis,
+  ): Promise<SimulationResult> => {
+    let spice
+    try {
+      spice = toSpice(netlist, analysis)
+    } catch (e) {
+      return {
+        status: 'error',
+        summary: e instanceof Error ? e.message : String(e),
+      }
+    }
+    try {
+      const sim = await engine()
+      sim.setNetList(spice.text)
+      const raw = await sim.runSim()
+      if (raw.dataType !== 'real') {
+        return { status: 'error', summary: 'ngspice が複素結果を返しました' }
+      }
+      if (analysis.kind === 'tran') {
+        const waveforms = mapSpiceWaveforms(raw, spice)
+        return {
+          status: 'ok',
+          summary: `過渡解析: ${waveforms.time.length} 点`,
+          waveforms,
+        }
+      }
+      const { nodeVoltages, elementCurrents } = mapSpiceResult(raw, spice)
+      return {
+        status: 'ok',
+        summary: describeResult(netlist, elementCurrents, nodeVoltages),
+        nodeVoltages,
+        elementCurrents,
+      }
+    } catch (e) {
+      return {
+        status: 'error',
+        summary: `ngspice 実行失敗: ${e instanceof Error ? e.message : String(e)}`,
+      }
+    }
+  }
+
   return {
-    async simulate(
+    simulate(
       netlist: Netlist,
       analysis: Analysis = { kind: 'op' },
     ): Promise<SimulationResult> {
-      let spice
-      try {
-        spice = toSpice(netlist, analysis)
-      } catch (e) {
-        return {
-          status: 'error',
-          summary: e instanceof Error ? e.message : String(e),
-        }
-      }
-      try {
-        const sim = await engine()
-        sim.setNetList(spice.text)
-        const raw = await sim.runSim()
-        if (raw.dataType !== 'real') {
-          return {
-            status: 'error',
-            summary: 'ngspice が複素結果を返しました',
-          }
-        }
-        if (analysis.kind === 'tran') {
-          const waveforms = mapSpiceWaveforms(raw, spice)
-          return {
-            status: 'ok',
-            summary: `過渡解析: ${waveforms.time.length} 点`,
-            waveforms,
-          }
-        }
-        const { nodeVoltages, elementCurrents } = mapSpiceResult(raw, spice)
-        return {
-          status: 'ok',
-          summary: describeResult(netlist, elementCurrents, nodeVoltages),
-          nodeVoltages,
-          elementCurrents,
-        }
-      } catch (e) {
-        return {
-          status: 'error',
-          summary: `ngspice 実行失敗: ${e instanceof Error ? e.message : String(e)}`,
-        }
-      }
+      return serialize(() => runOne(netlist, analysis))
     },
   }
 }

@@ -402,6 +402,13 @@ body {
   stroke-width: 1.5;
 }
 
+/* 準備中/計算中/エラー等を空オシロの中央に重ねる */
+.wave-overlay {
+  fill: var(--text-dim);
+  font-size: 13px;
+  dominant-baseline: middle;
+}
+
 /* ほぼ一定のノード (電源レール等) は薄く・破線で描いて発振を邪魔しない */
 .wave-line.constant {
   stroke-width: 1;
@@ -490,6 +497,11 @@ body {
   cursor: pointer;
 }
 
+.wave-controls .toggle:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .cursor-readout {
   font-size: 12px;
   color: var(--text);
@@ -564,6 +576,11 @@ body {
   gap: 6px;
   font-weight: 500;
   text-align: left;
+}
+
+/* 非表示中の ch: 行は残して薄く (高さを一定に保つ) */
+.measure-table tbody tr.off {
+  opacity: 0.4;
 }
 
 /* ボード上のノード●。ドラッグを邪魔しないよう当たり判定を無効化 */

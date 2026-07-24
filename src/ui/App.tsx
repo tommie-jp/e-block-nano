@@ -32,7 +32,7 @@ export const App = (): ReactElement => {
   const [simResult, setSimResult] = useState<SimulationResult | null>(null)
   const [liveCurrents, setLiveCurrents] = useState<LiveCurrents | null>(null)
   const [waveProbes, setWaveProbes] = useState<NodeProbe[]>([])
-  const [ngspiceOn, setNgspiceOn] = useState(false)
+  const [ngspiceOn, setNgspiceOn] = useState(true)
   const [simulating, setSimulating] = useState(false)
   const ngspice = useMemo(() => createNgspiceSimulator(), [])
   const fileInputRef = useRef<HTMLInputElement>(null)

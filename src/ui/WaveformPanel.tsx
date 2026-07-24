@@ -46,11 +46,10 @@ export const WaveformPanel = ({
     [],
   )
 
+  // 表示する波形。回路エラー中は古い結果を出さない (null=空オシロ)
+  const active = open && !hasError ? waveforms : null
   // 表示中のノード (色つき)。パネルを閉じていれば空 → ボードの●も消える
-  const probes = useMemo(
-    () => (open && waveforms ? selectProbes(waveforms) : []),
-    [open, waveforms],
-  )
+  const probes = useMemo(() => (active ? selectProbes(active) : []), [active])
   // ボードの●は「見えている線」だけに合わせる (非表示は●も消す)
   const visibleProbes = useMemo(
     () => probes.filter((p) => !hidden.has(p.nodeId)),
@@ -180,23 +179,27 @@ export const WaveformPanel = ({
         )}
         <span className="sim-note">ngspice .tran でノード電圧の時間変化</span>
       </div>
-      {open &&
-        (hasError ? (
-          <p className="error">⚠ 回路を修正してから実行してください</p>
-        ) : busy ? (
-          <p className="status">計算中…</p>
-        ) : error ? (
-          <p className="error">{error}</p>
-        ) : waveforms && probes.length > 0 ? (
-          <WaveformChart
-            waveforms={waveforms}
-            probes={probes}
-            hidden={hidden}
-            onToggle={toggleHidden}
-          />
-        ) : waveforms ? (
-          <p className="status">変化するノードがありません</p>
-        ) : null)}
+      {open && (
+        <WaveformChart
+          waveforms={active}
+          probes={probes}
+          hidden={hidden}
+          onToggle={toggleHidden}
+          status={
+            hasError
+              ? '⚠ 回路を修正してください'
+              : busy
+                ? waveforms
+                  ? '計算中…'
+                  : 'ngspice を準備中…'
+                : error
+                  ? error
+                  : active && probes.length === 0
+                    ? '変化するノードがありません'
+                    : null
+          }
+        />
+      )}
     </section>
   )
 }

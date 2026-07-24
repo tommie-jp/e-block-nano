@@ -8,6 +8,10 @@ export const CHART = {
   M: { top: 10, right: 12, bottom: 24, left: 46 },
 } as const
 
+/** データが無い時に空オシロを描くための既定スケール (TRAN_STOP=5s / 0..3V 相当) */
+export const DEFAULT_WINDOW = { start: 0, end: 5 } as const
+export const DEFAULT_Y_RANGE = { min: 0, max: 3 } as const
+
 export interface PlotBox {
   readonly left: number
   readonly right: number
