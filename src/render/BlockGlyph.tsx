@@ -39,6 +39,27 @@ const Stub = ({ dir }: { dir: Direction }): ReactElement => {
   )
 }
 
+const DOT_R = 3 // 接点 (黒丸 ●) の半径
+
+/**
+ * 接点を黒丸で描く。各辺中央 = ブロック間の接続点、
+ * 3 本以上が 1 ノードで合流するワイヤ (T字・十字) は中央にもジャンクション点。
+ */
+const ContactDots = ({ part }: { part: Part }): ReactElement => {
+  const dirs = part.device
+    ? devicePins(part.device).map(([, dir]) => dir)
+    : [...new Set(part.internalNets.flat())]
+  const hasJunction = part.internalNets.some((group) => group.length >= 3)
+  return (
+    <g className="glyph-dot">
+      {dirs.map((dir) => (
+        <circle key={dir} cx={EDGE_POINT[dir].x} cy={EDGE_POINT[dir].y} r={DOT_R} />
+      ))}
+      {hasJunction && <circle cx={C} cy={C} r={DOT_R} />}
+    </g>
+  )
+}
+
 /** 配線ブロック: 端子グループを中心経由で結ぶ */
 const WireSymbol = ({ part }: { part: Part }): ReactElement => (
   <g>
@@ -60,12 +81,14 @@ const WireSymbol = ({ part }: { part: Part }): ReactElement => (
   </g>
 )
 
-/** 立体交差配線: N-S は直線、E-W は中央に隙間 (橋) を空けて交差非導通を表す */
+/** 立体交差配線: N-S は直線、E-W は中央で半円ブリッジ (ホップ) を描き跨いで交差非導通を表す */
+const HOP_R = 7 // ホップ (半円ブリッジ) の半径
 const CrossoverSymbol = (): ReactElement => (
-  <g className="glyph-line">
+  <g className="glyph-line" fill="none">
     <line x1={C} y1={0} x2={C} y2={CELL_SIZE} />
-    <line x1={0} y1={C} x2={C - 6} y2={C} />
-    <line x1={C + 6} y1={C} x2={CELL_SIZE} y2={C} />
+    <path
+      d={`M0,${C} H${C - HOP_R} A${HOP_R},${HOP_R} 0 0 1 ${C + HOP_R},${C} H${CELL_SIZE}`}
+    />
   </g>
 )
 
@@ -83,12 +106,13 @@ const TwoTerminalSymbol = ({
   const body = (() => {
     switch (device.kind) {
       case 'resistor':
+        // 新JIS: ジグザグではなく長方形
         return (
-          <polyline
-            className="glyph-line"
-            fill="none"
-            points={`${C},${STUB_LEN} ${C + 7},${STUB_LEN + 5} ${C - 7},${STUB_LEN + 13} ${C + 7},${STUB_LEN + 21} ${C - 7},${STUB_LEN + 29} ${C + 7},${STUB_LEN + 37} ${C},${CELL_SIZE - STUB_LEN}`}
-          />
+          <g className="glyph-line">
+            <line x1={C} y1={STUB_LEN} x2={C} y2={C - 15} />
+            <rect x={C - 7} y={C - 15} width={14} height={30} fill="none" />
+            <line x1={C} y1={C + 15} x2={C} y2={CELL_SIZE - STUB_LEN} />
+          </g>
         )
       case 'capacitor':
         return (
@@ -251,6 +275,7 @@ export const BlockGlyph = ({
       />
       <g transform={`rotate(${orientation}, ${C}, ${C})`}>
         {symbolFor(part, closed, current)}
+        <ContactDots part={part} />
       </g>
       {label && (
         <text x={C} y={CELL_SIZE - EDGE_INSET - 3} className="block-label">

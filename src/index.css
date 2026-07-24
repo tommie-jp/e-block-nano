@@ -183,6 +183,12 @@ body {
   color: var(--symbol);
 }
 
+/* 接点 (端子・ジャンクションの黒丸 ●) */
+.glyph-dot {
+  fill: var(--symbol);
+  stroke: none;
+}
+
 .block-label {
   font-size: 9px;
   fill: var(--symbol);
