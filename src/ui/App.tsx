@@ -91,6 +91,12 @@ export const App = (): ReactElement => {
   const netlist = useMemo(() => buildNetlist(editor.board), [editor.board])
   const findings = useMemo(() => lintCircuit(netlist), [netlist])
   const hasError = findings.some((f) => f.severity === 'error')
+  // SW 切替トグルの押下状態 = 選択中スイッチが閉じているか
+  const selectedSwitchClosed =
+    editor.selectedIsSwitch &&
+    (editor.board.placements.find((p) => p.blockId === editor.selectedBlockId)
+      ?.state?.closed ??
+      false)
 
   // error 時はシミュレータを呼ばず、lint を直せば動く状態にする gating。
   // ngspice(定量)は on-demand。off の間はスタブ(集計のみ)を流す。
@@ -208,10 +214,12 @@ export const App = (): ReactElement => {
             </button>
             <button
               type="button"
+              className="toggle"
+              aria-pressed={selectedSwitchClosed}
               disabled={!editor.selectedIsSwitch}
               onClick={editor.toggleSelected}
             >
-              SW 切替 (C)
+              SW {selectedSwitchClosed ? '閉' : '開'} (C)
             </button>
             <button
               type="button"
@@ -222,11 +230,11 @@ export const App = (): ReactElement => {
             </button>
             <button
               type="button"
-              className={ngspiceOn ? 'ngspice-toggle on' : 'ngspice-toggle'}
+              className="toggle"
               aria-pressed={ngspiceOn}
               onClick={() => setNgspiceOn((v) => !v)}
             >
-              ngspice で計算 {ngspiceOn ? 'ON' : 'OFF'}
+              ngspice で計算
             </button>
             <span className="status">
               ブロック: {editor.board.placements.length} / ネット:{' '}

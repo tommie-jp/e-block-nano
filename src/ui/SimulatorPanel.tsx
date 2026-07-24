@@ -71,8 +71,13 @@ export const SimulatorPanel = ({
   return (
     <section className="sim-panel">
       <div className="sim-head">
-        <button type="button" onClick={handleToggle}>
-          {open ? 'シミュレーション非表示' : 'シミュレーション表示'}
+        <button
+          type="button"
+          className="toggle"
+          aria-pressed={open}
+          onClick={handleToggle}
+        >
+          シミュレーション表示
         </button>
         <span className="sim-note">
           CircuitJS1 で電流を可視化{live ? ' (ライブ接続)' : ''}

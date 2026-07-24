@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import type { Netlist } from '../core/netlist/build'
 import type { SimulationPort } from '../core/simulation/port'
@@ -84,18 +84,30 @@ export const WaveformPanel = ({
   const [busy, setBusy] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const audioRef = useRef<AudioContext | null>(null)
 
   const analysis = useMemo(
     () => ({ kind: 'tran' as const, step: TRAN_STEP, stop: TRAN_STOP }),
     [],
   )
 
+  const stopAudio = (): void => {
+    audioRef.current?.close().catch(() => {})
+    audioRef.current = null
+    setPlaying(false)
+  }
+
   /**
-   * 表示中の波形(最も振幅の大きい=発振しているノード)を Web Audio で鳴らす。
-   * 発振が低速(数Hz)でもそのままでは聞こえないので、基本周波数を推定して
-   * 可聴域(AUDIO_TARGET_HZ)へ playbackRate でピッチシフトする。
+   * 表示中の波形(最も振幅の大きい=発振しているノード)を Web Audio で鳴らす
+   * トグル。再生中に押すと止める。発振が低速(数Hz)でもそのままでは聞こえない
+   * ので、基本周波数を推定して可聴域(AUDIO_TARGET_HZ)へ playbackRate で
+   * ピッチシフトする。
    */
-  const playAudio = (): void => {
+  const togglePlay = (): void => {
+    if (playing) {
+      stopAudio()
+      return
+    }
     if (!waveforms) return
     setPlaying(true)
     setError(null)
@@ -127,9 +139,11 @@ export const WaveformPanel = ({
       const freq = span > 0 ? crossings / 2 / span : 0
       if (freq <= 0) {
         setError('発振が検出できません(この回路は音になりません)')
+        setPlaying(false)
         return
       }
       const ctx = new AudioContext()
+      audioRef.current = ctx
       const pcm = resampleToAudio(wf.time, osc, ctx.sampleRate)
       const buffer = ctx.createBuffer(1, pcm.length, ctx.sampleRate)
       buffer.getChannelData(0).set(pcm)
@@ -141,14 +155,24 @@ export const WaveformPanel = ({
       gain.gain.value = 0.2 // 矩形波は大きいので絞る
       src.connect(gain).connect(ctx.destination)
       src.start()
-      src.stop(ctx.currentTime + 1.5) // 1.5 秒鳴らす
-      src.onended = () => void ctx.close()
+      src.stop(ctx.currentTime + 1.5) // 最長 1.5 秒で自動停止
+      src.onended = () => {
+        if (audioRef.current === ctx) stopAudio()
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
-    } finally {
       setPlaying(false)
     }
   }
+
+  // パネルを閉じる / アンマウント時は再生中の音を止める
+  useEffect(() => {
+    if (!open && audioRef.current) stopAudio()
+    return () => {
+      audioRef.current?.close().catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   useEffect(() => {
     if (!open || hasError) return
@@ -176,16 +200,23 @@ export const WaveformPanel = ({
   return (
     <section className="sim-panel">
       <div className="sim-head">
-        <button type="button" onClick={() => setOpen((o) => !o)}>
-          {open ? '波形を隠す' : '波形 (過渡解析)'}
+        <button
+          type="button"
+          className="toggle"
+          aria-pressed={open}
+          onClick={() => setOpen((o) => !o)}
+        >
+          波形 (過渡解析)
         </button>
         {open && !hasError && (
           <button
             type="button"
-            disabled={playing || !waveforms}
-            onClick={playAudio}
+            className="toggle"
+            aria-pressed={playing}
+            disabled={!playing && !waveforms}
+            onClick={togglePlay}
           >
-            {playing ? '再生中…' : '▶ 音を鳴らす'}
+            {playing ? '■ 停止' : '▶ 音を鳴らす'}
           </button>
         )}
         <span className="sim-note">ngspice .tran でノード電圧の時間変化</span>

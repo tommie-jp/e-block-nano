@@ -257,9 +257,12 @@ body {
   cursor: default;
 }
 
-.ngspice-toggle.on {
+/* トグルボタン: 押下(オン)状態を強調表示する。基本の見た目は各コンテナの
+   button 規則(.toolbar button / .sim-head button)から継承する */
+.toggle[aria-pressed='true'] {
   border-color: var(--accent);
   background: var(--accent-dim);
+  color: var(--accent);
 }
 
 .status {
