@@ -39,6 +39,9 @@ export const WaveformPanel = ({
   const [open, setOpen] = useState(false)
   const [waveforms, setWaveforms] = useState<Waveforms | null>(null)
   const [busy, setBusy] = useState(false)
+  // 計算中の推定進捗 [%]。ngspice は逐次進捗を出さないので経過時間ベースで擬似的に
+  // 進める (速く立ち上がり ~92% で頭打ち、完了で 100%)。
+  const [progress, setProgress] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // 凡例クリックで非表示にしたノード。線もボードの●も消す
@@ -167,6 +170,21 @@ export const WaveformPanel = ({
     }
   }, [open, hasError, netlist, analysis, simulator])
 
+  // 擬似進捗: busy の間だけ 5%→92% へ漸近的に進め、完了時に 100% を一瞬見せる
+  useEffect(() => {
+    if (!busy) {
+      setProgress((p) => (p > 0 ? 100 : 0))
+      return
+    }
+    setProgress(5)
+    let p = 5
+    const iv = setInterval(() => {
+      p += (92 - p) * 0.14
+      setProgress(Math.min(92, Math.round(p)))
+    }, 150)
+    return () => clearInterval(iv)
+  }, [busy])
+
   return (
     <section className="sim-panel">
       <div className="sim-head">
@@ -201,13 +219,12 @@ export const WaveformPanel = ({
           reference={reference}
           onSaveReference={() => setReference(waveforms)}
           onClearReference={() => setReference(null)}
+          progress={busy ? progress : null}
           status={
             hasError
               ? '⚠ 回路を修正してください'
               : busy
-                ? waveforms
-                  ? '計算中…'
-                  : 'ngspice を準備中…'
+                ? `${waveforms ? '計算中' : 'ngspice を準備中'}… ${progress}%`
                 : error
                   ? error
                   : active && probes.length === 0

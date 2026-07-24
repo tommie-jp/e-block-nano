@@ -38,6 +38,8 @@ interface WaveformChartProps {
   hidden: ReadonlySet<string>
   onToggle: (nodeId: string) => void
   status?: string | null
+  /** 計算中の推定進捗 [%] (0-100)。null なら進捗バーを出さない */
+  progress?: number | null
   mathNodes?: MathNodes | null
   reference?: Waveforms | null
   onSaveReference?: () => void
@@ -74,6 +76,7 @@ export const WaveformChart = ({
   hidden,
   onToggle,
   status,
+  progress,
   mathNodes,
   reference,
   onSaveReference,
@@ -258,6 +261,7 @@ export const WaveformChart = ({
       status.includes('失敗') ||
       status.includes('できません') ||
       status.includes('エラー'))
+  const hasProgress = !!status && !statusIsError && progress != null
   const mathMeasure =
     mathValues && waveforms ? measureSeries(waveforms.time, mathValues) : null
   const labelOf = (id: string): string =>
@@ -378,18 +382,38 @@ export const WaveformChart = ({
               x={scales.plot.left}
               y={plotCy - 26}
               width={scales.plot.width}
-              height={52}
+              height={hasProgress ? 66 : 52}
               rx={10}
               className={`wave-overlay-bg${statusIsError ? ' error' : ''}`}
             />
             <text
               x={plotCx}
-              y={plotCy}
+              y={hasProgress ? plotCy - 8 : plotCy}
               textAnchor="middle"
               className={`wave-overlay${statusIsError ? ' error' : ''}`}
             >
               {status}
             </text>
+            {hasProgress && (
+              <>
+                <rect
+                  x={plotCx - 110}
+                  y={plotCy + 14}
+                  width={220}
+                  height={8}
+                  rx={4}
+                  className="wave-progress-track"
+                />
+                <rect
+                  x={plotCx - 110}
+                  y={plotCy + 14}
+                  width={(220 * (progress ?? 0)) / 100}
+                  height={8}
+                  rx={4}
+                  className="wave-progress-fill"
+                />
+              </>
+            )}
           </g>
         )}
       </svg>

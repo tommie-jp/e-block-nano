@@ -434,6 +434,15 @@ body {
   stroke: var(--error);
 }
 
+/* 計算中の進捗バー */
+.wave-progress-track {
+  fill: rgba(255, 255, 255, 0.15);
+}
+
+.wave-progress-fill {
+  fill: var(--accent);
+}
+
 /* ほぼ一定のノード (電源レール等) は薄く・破線で描いて発振を邪魔しない */
 .wave-line.constant {
   stroke-width: 1;
