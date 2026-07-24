@@ -145,7 +145,9 @@ export const App = (): ReactElement => {
   return (
     <div className="app">
       <header className="header">
-        <h1>e-block-nano PoC</h1>
+        <h1>
+          e-block-nano PoC <span className="app-version">v{__APP_VERSION__}</span>
+        </h1>
         <p className="hint">
           パーツを選んでセルをクリックで配置 / ドラッグで移動 / クリックで選択 /
           R で回転 / C でスイッチ切替 / Delete で削除

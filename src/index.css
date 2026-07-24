@@ -46,6 +46,15 @@ body {
   font-size: 20px;
 }
 
+/* タイトル右のバージョン (ビルド時に package.json から埋め込み) */
+.app-version {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-dim);
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
 .header .hint {
   margin: 4px 0 0;
   font-size: 12px;
