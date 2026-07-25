@@ -3,6 +3,7 @@ import voltageDivider from './voltage-divider.json'
 import parallelResistors from './parallel-resistors.json'
 import rcCharge from './rc-charge.json'
 import astableMultivibrator from './astable-multivibrator.json'
+import bistableFlipflop from './bistable-flipflop.json'
 import commonEmitterAmp from './common-emitter-amp.json'
 import emitterFollower from './emitter-follower.json'
 
@@ -82,6 +83,16 @@ export const SAMPLE_CIRCUITS: readonly SampleCircuit[] = [
       '反転せず、出力(エミッタ)は入力(ベース)より約 0.7V 低い。電圧は増えないが' +
       'インピーダンス変換になる。',
     data: emitterFollower,
+  },
+  {
+    id: 'bistable-flipflop',
+    name: '08-フリップフロップ',
+    description:
+      '双安定マルチバイブレータ。2 石を 10kΩ で互いのコレクタ↔ベースに繋ぐと、' +
+      '片方 ON・片方 OFF の 2 状態で安定して LED が交互に点く。ベースを GND へ落とす' +
+      'スイッチを閉じるとその側が OFF になり、開いても状態は保持される(1 ビットの記憶)。' +
+      '消灯側のコレクタが 3V まで上がらないのは、点灯側のベース電流が消灯側の LED を通るから。',
+    data: bistableFlipflop,
   },
 ]
 

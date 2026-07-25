@@ -152,4 +152,62 @@ describe('sample circuits vs. analytic values (ngspice)', () => {
     expect(Math.min(...diffs)).toBeGreaterThan(0.6)
     expect(Math.max(...diffs)).toBeLessThan(0.8)
   }, 60000)
+
+  /**
+   * 08 は DC 解が 2 つある回路。serialize が uic-kick 系に付ける `.nodeset`
+   * (= 最初の NPN を ON 側に寄せる推定) で片側にラッチするのを確認し、
+   * ベースを GND へ落とすスイッチで反転することを見る。
+   */
+  const flipflop = () =>
+    buildNetlist(deserializeBoard(JSON.stringify(getSample('bistable-flipflop')!.data)))
+
+  /** 2 石のコレクタ電圧と LED 電流を .op で読む */
+  const latchState = async (netlist: ReturnType<typeof flipflop>) => {
+    const result = await createNgspiceSimulator().simulate(netlist)
+    const v = result.nodeVoltages ?? {}
+    const npns = netlist.elements.filter((e) => e.device.kind === 'transistor-npn')
+    const leds = netlist.elements.filter((e) => e.device.kind === 'led')
+    return {
+      collectors: npns.map((q) => v[q.pinNodes.collector]),
+      ledCurrents: leds.map((l) => Math.abs((result.elementCurrents ?? {})[l.blockId] ?? 0)),
+    }
+  }
+
+  test('08-フリップフロップ: 片方 ON・片方 OFF でラッチし LED が片側だけ点く', async () => {
+    const { collectors, ledCurrents } = await latchState(flipflop())
+
+    // 一方は飽和 (0.3V 未満)、他方はそれより 1V 以上高い
+    const [low, high] = [...collectors].sort((a, b) => a! - b!)
+    expect(low!).toBeLessThan(0.3)
+    expect(high! - low!).toBeGreaterThan(1)
+
+    // LED 電流は 10 倍以上違う (点灯 / 消灯)
+    const [dark, lit] = [...ledCurrents].sort((a, b) => a - b)
+    expect(lit).toBeGreaterThan(5e-4)
+    expect(lit / Math.max(dark, 1e-12)).toBeGreaterThan(10)
+  }, 60000)
+
+  test('08-フリップフロップ: ベースを GND へ落とすと状態が反転する', async () => {
+    const netlist = flipflop()
+    const npns = netlist.elements.filter((e) => e.device.kind === 'transistor-npn')
+    const before = await latchState(netlist)
+    // ラッチで ON 側 (コレクタが低い) の石のベースを落とす
+    const onIndex = before.collectors[0]! < before.collectors[1]! ? 0 : 1
+    const onBase = npns[onIndex].pinNodes.base
+    const sw = netlist.elements.find(
+      (e) =>
+        e.device.kind === 'switch' && Object.values(e.pinNodes).includes(onBase),
+    )!
+    const closed = {
+      ...netlist,
+      elements: netlist.elements.map((e) =>
+        e.blockId === sw.blockId ? { ...e, state: { closed: true } } : e,
+      ),
+    }
+
+    const after = await latchState(closed)
+    // ON だった側が OFF になり、もう一方が ON になる
+    expect(after.collectors[onIndex]!).toBeGreaterThan(before.collectors[onIndex]! + 1)
+    expect(after.collectors[1 - onIndex]!).toBeLessThan(0.3)
+  }, 60000)
 })

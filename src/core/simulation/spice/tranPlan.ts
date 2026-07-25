@@ -46,7 +46,7 @@ const hasNpn = (netlist: Netlist): boolean =>
  *   対称なマルチバイブレータはメタ安定で起動しないため状態を決めてやる
  * - どちらでもない → `zero-state` (コンデンサを 0 から充電。RC 充放電の観測)
  */
-const startupFor = (netlist: Netlist): TranStartup => {
+export const startupFor = (netlist: Netlist): TranStartup => {
   if (hasSource(netlist)) return 'operating-point'
   return hasNpn(netlist) ? 'uic-kick' : 'zero-state'
 }

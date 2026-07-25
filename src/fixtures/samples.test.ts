@@ -156,3 +156,64 @@ describe('single-transistor stage topology', () => {
     expect(spans(re, q.pinNodes.emitter, netlist.groundNode!)).toBe(true)
   })
 })
+
+/**
+ * 08 は「片方 ON・片方 OFF」で安定する双安定。数値は ngspice 側で見るので、
+ * ここでは交差結合が抵抗であること (04 のコンデンサ = 無安定との違い) と、
+ * トリガ SW がベースと GND の間にあることを守る。
+ */
+describe('bistable flip-flop topology', () => {
+  const netlist = () =>
+    buildNetlist(deserializeBoard(JSON.stringify(getSample('bistable-flipflop')!.data)))
+
+  test('2 石・LED 2 個・トリガ SW 2 個で、コンデンサは持たない', () => {
+    const kinds = netlist().elements.map((e) => e.device.kind)
+    expect(kinds.filter((k) => k === 'transistor-npn')).toHaveLength(2)
+    expect(kinds.filter((k) => k === 'led')).toHaveLength(2)
+    expect(kinds.filter((k) => k === 'switch')).toHaveLength(2)
+    // 交差結合が容量なら無安定 (04) になってしまう
+    expect(kinds.filter((k) => k === 'capacitor')).toHaveLength(0)
+  })
+
+  test('10kΩ が「あるコレクタ ↔ 別の石のベース」を繋ぐ (直流の交差結合)', () => {
+    const els = netlist().elements
+    const npns = els.filter((e) => e.device.kind === 'transistor-npn')
+    const cross = els.filter(
+      (e) => e.device.kind === 'resistor' && e.device.ohms === 10_000,
+    )
+    expect(cross).toHaveLength(2)
+
+    for (const r of cross) {
+      const ends = new Set(Object.values(r.pinNodes))
+      const from = npns.find((q) => ends.has(q.pinNodes.collector))
+      const to = npns.find((q) => ends.has(q.pinNodes.base))
+      expect(from, 'cross resistor end on a collector').toBeDefined()
+      expect(to, 'cross resistor end on a base').toBeDefined()
+      expect(from!.blockId).not.toBe(to!.blockId)
+    }
+    // 2 本が別々のコレクタから出る (両方向に効く)
+    const sources = cross.map(
+      (r) =>
+        npns.find((q) =>
+          new Set(Object.values(r.pinNodes)).has(q.pinNodes.collector),
+        )!.blockId,
+    )
+    expect(new Set(sources).size).toBe(2)
+  })
+
+  test('各スイッチは「別々のベース」と GND の間にある', () => {
+    const nl = netlist()
+    const npns = nl.elements.filter((e) => e.device.kind === 'transistor-npn')
+    const switches = nl.elements.filter((e) => e.device.kind === 'switch')
+    const bases = switches.map((sw) => {
+      const ends = Object.values(sw.pinNodes)
+      expect(ends).toContain(nl.groundNode)
+      const base = ends.find((n) => n !== nl.groundNode)
+      expect(npns.map((q) => q.pinNodes.base)).toContain(base)
+      return base
+    })
+    expect(new Set(bases).size).toBe(2)
+    // 2 石のエミッタはどちらも GND
+    for (const q of npns) expect(q.pinNodes.emitter).toBe(nl.groundNode)
+  })
+})

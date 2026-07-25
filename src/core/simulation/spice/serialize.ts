@@ -1,7 +1,7 @@
 import type { Element, Netlist } from '../../netlist/build'
 import type { SourceWave } from '../../parts/types'
 import { wiperOhms } from '../../parts/types'
-import { tranPlanFor } from './tranPlan'
+import { startupFor, tranPlanFor } from './tranPlan'
 
 /**
  * Netlist → SPICE netlist の変換器 (純関数)。唯一のエンジンである
@@ -106,18 +106,20 @@ export const toSpice = (
   if (kinds.has('transistor-npn')) lines.push(MODEL_LINES.npn)
 
   if (analysis.kind === 'op') {
+    // 双安定・対称マルチは DC 解が複数ある (対称な半 ON 解に落ちて実機とずれる)。
+    // 同じ「最初の NPN を ON 側」ヒントを .nodeset = DC 解の初期推定として渡す。
+    if (startupFor(netlist) === 'uic-kick') {
+      const hint = stateHint(netlist, nodeNames)
+      if (hint) lines.push(`.nodeset ${hint}`)
+    }
     lines.push('.op')
   } else {
     const startup = analysis.startup ?? tranPlanFor(netlist).startup
     if (startup === 'uic-kick') {
       // 最初のトランジスタを明確に ON (ベース高・コレクタ低) に固定した初期条件から
-      // 始めて確実に発振させる。
-      const npn = netlist.elements.find((e) => e.device.kind === 'transistor-npn')
-      if (npn) {
-        lines.push(
-          `.ic v(${nodeNames[npn.pinNodes.base]})=0.7 v(${nodeNames[npn.pinNodes.collector]})=0.1`,
-        )
-      }
+      // 始めて確実に発振・ラッチさせる。
+      const hint = stateHint(netlist, nodeNames)
+      if (hint) lines.push(`.ic ${hint}`)
     }
     // uic = DC 動作点を求めず初期値から始める
     const uic = startup === 'operating-point' ? '' : ' uic'
@@ -125,6 +127,19 @@ export const toSpice = (
   }
   lines.push('.end')
   return { text: lines.join('\n'), nodeNames, currentProbes, deviceRefs }
+}
+
+/**
+ * 「最初の NPN を ON 側に寄せる」ノード電圧ヒント (`.ic` / `.nodeset` 共通の本文)。
+ * NPN が無ければ null。
+ */
+const stateHint = (
+  netlist: Netlist,
+  nodeNames: Readonly<Record<string, string>>,
+): string | null => {
+  const npn = netlist.elements.find((e) => e.device.kind === 'transistor-npn')
+  if (!npn) return null
+  return `v(${nodeNames[npn.pinNodes.base]})=0.7 v(${nodeNames[npn.pinNodes.collector]})=0.1`
 }
 
 type Seq = { V: number; R: number; D: number; C: number; Q: number }

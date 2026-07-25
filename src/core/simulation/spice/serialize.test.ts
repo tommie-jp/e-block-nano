@@ -112,6 +112,16 @@ describe('toSpice', () => {
     expect(tran).not.toContain('.op')
   })
 
+  test('.op でも双安定・対称マルチには .nodeset で解のヒントを出す', () => {
+    // NPN を含む (= キック系) 回路は DC 解が複数ありうるので推定値を渡す
+    const withNpn = toSpice(npnNetlist()).text
+    expect(withNpn).toMatch(/^\.nodeset v\(\S+\)=0\.7 v\(\S+\)=0\.1$/m)
+    expect(withNpn).toContain('.op')
+
+    // トランジスタの無い回路は解が一意なのでヒント不要
+    expect(toSpice(fixtureNetlist()).text).not.toContain('.nodeset')
+  })
+
   test('過渡の起動条件を明示できる (動作点から / 初期値 0 から / キック付き)', () => {
     const npn = npnNetlist()
     const tran = { kind: 'tran', step: 0.02, stop: 5 } as const
