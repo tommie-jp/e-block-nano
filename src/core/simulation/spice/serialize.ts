@@ -2,7 +2,7 @@ import type { Element, Netlist } from '../../netlist/build'
 
 /**
  * Netlist → SPICE netlist の変換器 (純関数)。唯一のエンジンである
- * ngspice へ渡す。解析は動作点 `.op` 固定 (直流の点灯判定に十分)。
+ * ngspice へ渡す。解析は動作点 `.op` と過渡 `.tran` ({@link TranStartup} で起動条件を選ぶ)。
  *
  * 方針(実物 ngspice-wasm で素振りして確定):
  * - 基準ノード(groundNode)= SPICE の `0`、他は `n1, n2, …`
@@ -27,10 +27,36 @@ const MODEL_LINES = {
 const SWITCH_CLOSED_OHMS = '0.001'
 const SWITCH_OPEN_OHMS = '1e9'
 
-/** 解析カード。動作点 (.op) か過渡 (.tran)。過渡はコンデンサを 0 から充電 (uic) */
+/**
+ * 過渡の起動条件。回路ごとに要求が違うので呼び出し側が選ぶ。
+ * - `operating-point`: DC 動作点を初期値にする (`.tran` 素のまま)。増幅器はこれ。
+ *   バイアス点から始まるので利得・位相をそのまま測れる
+ * - `zero-state`: `uic` でコンデンサを 0 から充電する。RC 充放電の観測用
+ * - `uic-kick`: `zero-state` ＋ 最初の NPN を ON 側に固定する `.ic`。対称な
+ *   マルチバイブレータ／双安定はメタ安定で起動しないため、状態を決めて発振させる
+ */
+export type TranStartup = 'operating-point' | 'zero-state' | 'uic-kick'
+
+/** 解析カード。動作点 (.op) か過渡 (.tran) */
 export type Analysis =
   | { readonly kind: 'op' }
-  | { readonly kind: 'tran'; readonly step: number; readonly stop: number }
+  | {
+      readonly kind: 'tran'
+      readonly step: number
+      readonly stop: number
+      /** 省略時は互換動作 ({@link legacyStartup}) */
+      readonly startup?: TranStartup
+    }
+
+/**
+ * `startup` 省略時の起動条件。NPN があればキック付き、無ければ初期値 0 という
+ * 従来の暗黙ルールをそのまま残したもの。各サンプルが起動条件を明示するように
+ * なれば不要になる (docs/08 Ph1-e)。
+ */
+const legacyStartup = (netlist: Netlist): TranStartup =>
+  netlist.elements.some((e) => e.device.kind === 'transistor-npn')
+    ? 'uic-kick'
+    : 'zero-state'
 
 /** 変換結果。結果ベクトル名をうちの nodeId / blockId へ戻すための対応表つき */
 export interface SpiceNetlist {
@@ -87,16 +113,20 @@ export const toSpice = (
   if (analysis.kind === 'op') {
     lines.push('.op')
   } else {
-    // 過渡: 対称なマルチバイブレータは起動しない (メタ安定) ため、最初の
-    // トランジスタを明確に ON (ベース高・コレクタ低) に固定した初期条件から
-    // 始めて確実に発振させる。
-    const npn = netlist.elements.find((e) => e.device.kind === 'transistor-npn')
-    if (npn) {
-      lines.push(
-        `.ic v(${nodeNames[npn.pinNodes.base]})=0.7 v(${nodeNames[npn.pinNodes.collector]})=0.1`,
-      )
+    const startup = analysis.startup ?? legacyStartup(netlist)
+    if (startup === 'uic-kick') {
+      // 最初のトランジスタを明確に ON (ベース高・コレクタ低) に固定した初期条件から
+      // 始めて確実に発振させる。
+      const npn = netlist.elements.find((e) => e.device.kind === 'transistor-npn')
+      if (npn) {
+        lines.push(
+          `.ic v(${nodeNames[npn.pinNodes.base]})=0.7 v(${nodeNames[npn.pinNodes.collector]})=0.1`,
+        )
+      }
     }
-    lines.push(`.tran ${analysis.step} ${analysis.stop} uic`)
+    // uic = DC 動作点を求めず初期値から始める
+    const uic = startup === 'operating-point' ? '' : ' uic'
+    lines.push(`.tran ${analysis.step} ${analysis.stop}${uic}`)
   }
   lines.push('.end')
   return { text: lines.join('\n'), nodeNames, currentProbes, deviceRefs }

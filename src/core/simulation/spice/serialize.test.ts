@@ -8,6 +8,16 @@ import { toSpice } from './serialize'
 const fixtureNetlist = () =>
   buildNetlist(deserializeBoard(JSON.stringify(fixture)))
 
+/** NPN を含む最小盤面 (電池は groundNode を作るために必要) */
+const npnNetlist = () => {
+  const board = placeBlock(
+    placeBlock(createBoard(6, 8), 'battery-3v', { row: 0, col: 0 }),
+    'transistor-npn',
+    { row: 2, col: 2 },
+  )
+  return buildNetlist(board)
+}
+
 /** SPICE 本文を要素行の配列にする (先頭のタイトル行と末尾カードを除く関心部分) */
 const bodyLines = (text: string): string[] =>
   text.split('\n').filter((l) => l && !l.startsWith('.') && l !== 'e-block-nano circuit')
@@ -89,6 +99,39 @@ describe('toSpice', () => {
     const tran = toSpice(netlist, { kind: 'tran', step: 0.02, stop: 5 }).text
     expect(tran).toContain('.tran 0.02 5 uic')
     expect(tran).not.toContain('.op')
+  })
+
+  test('過渡の起動条件を明示できる (動作点から / 初期値 0 から / キック付き)', () => {
+    const npn = npnNetlist()
+    const tran = { kind: 'tran', step: 0.02, stop: 5 } as const
+
+    // 動作点から: DC 解を初期値にするので uic もキックも付けない
+    const op = toSpice(npn, { ...tran, startup: 'operating-point' }).text
+    expect(op).toContain('.tran 0.02 5')
+    expect(op).not.toContain('uic')
+    expect(op).not.toContain('.ic ')
+
+    // 初期値 0 から: uic だけ (コンデンサを 0 から充電する 03 の挙動)
+    const zero = toSpice(npn, { ...tran, startup: 'zero-state' }).text
+    expect(zero).toContain('.tran 0.02 5 uic')
+    expect(zero).not.toContain('.ic ')
+
+    // キック付き: 対称マルチを起動させるため最初の NPN を ON 側に固定する
+    const kick = toSpice(npn, { ...tran, startup: 'uic-kick' }).text
+    expect(kick).toMatch(/^\.ic v\(\S+\)=0\.7 v\(\S+\)=0\.1$/m)
+    expect(kick).toContain('.tran 0.02 5 uic')
+  })
+
+  test('起動条件を省略したら従来動作 (NPN があればキック付き、無ければ初期値 0)', () => {
+    const tran = { kind: 'tran', step: 0.02, stop: 5 } as const
+
+    const withNpn = toSpice(npnNetlist(), tran).text
+    expect(withNpn).toBe(toSpice(npnNetlist(), { ...tran, startup: 'uic-kick' }).text)
+
+    const withoutNpn = toSpice(fixtureNetlist(), tran).text
+    expect(withoutNpn).toBe(
+      toSpice(fixtureNetlist(), { ...tran, startup: 'zero-state' }).text,
+    )
   })
 
   test('throws when the circuit has no ground node', () => {
