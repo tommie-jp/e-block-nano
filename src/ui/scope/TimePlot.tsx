@@ -19,6 +19,8 @@ interface TimePlotProps {
   /** 右軸で描くトレース (別単位。無ければ空) */
   rightTraces: readonly DrawTrace[]
   leftUnit: string
+  /** 左軸の値 → 表示単位の倍率 (目盛りの数字に掛ける) */
+  leftScale?: number
   /** 右軸のレンジ (表示単位に換算済み) と単位記号 */
   rightAxis?: { min: number; max: number; unit: string }
   /** 右軸トレースの値 → 表示単位の倍率 (A→mA なら 1000) */
@@ -43,6 +45,7 @@ export const TimePlot = ({
   leftTraces,
   rightTraces,
   leftUnit,
+  leftScale = 1,
   rightAxis,
   rightScale = 1,
   sweeping,
@@ -69,7 +72,12 @@ export const TimePlot = ({
 
   return (
     <>
-      <Graticule scales={scales} leftUnit={leftUnit} rightAxis={rightAxis} />
+      <Graticule
+        scales={scales}
+        leftUnit={leftUnit}
+        leftScale={leftScale}
+        rightAxis={rightAxis}
+      />
 
       {reference &&
         leftTraces.map((t) =>

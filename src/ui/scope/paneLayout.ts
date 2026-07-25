@@ -25,6 +25,25 @@ export const paneScales = (
   height: number,
 ): Scales => makeScales(win, yRange, height)
 
+/** 自動レンジの余白。波形の頂点が枠に張り付かないよう上下に足す割合 */
+const HEADROOM = 0.1
+
+/**
+ * 自動レンジに 10% の余白を足す。0 側は基準線なので動かさず、
+ * 振れている側 (上/下) だけ広げる。
+ */
+export const withHeadroom = (range: {
+  min: number
+  max: number
+}): { min: number; max: number } => {
+  const span = range.max - range.min
+  if (!(span > 0)) return range
+  return {
+    min: range.min < 0 ? range.min - span * HEADROOM : range.min,
+    max: range.max > 0 ? range.max + span * HEADROOM : range.max,
+  }
+}
+
 /**
  * 自動レンジに縦ズーム (振幅つまみ) を掛ける。0 を動かさずに上下を詰めるので、
  * 基準線の位置が変わらないまま波形が大きくなる。
@@ -78,16 +97,18 @@ export const panesForRender = (
 
     const leftTraces = traces.filter((t) => unitOf(t.expr) === leftUnit)
     const autoLeft = leftTraces.length
-      ? zoomRange(traceRange(leftTraces, FLAT_PAD[leftUnit]), gain)
+      ? withHeadroom(zoomRange(traceRange(leftTraces, FLAT_PAD[leftUnit]), gain))
       : emptyRange
     const yRange = pane.yMode === 'manual' && pane.yRange ? pane.yRange : autoLeft
 
     const rightScale = rightUnit ? UNIT_DISPLAY[rightUnit].scale : 1
     const rightAxis = rightUnit
       ? (() => {
-          const raw = traceRange(
-            traces.filter((t) => unitOf(t.expr) === rightUnit),
-            FLAT_PAD[rightUnit],
+          const raw = withHeadroom(
+            traceRange(
+              traces.filter((t) => unitOf(t.expr) === rightUnit),
+              FLAT_PAD[rightUnit],
+            ),
           )
           return {
             min: raw.min * rightScale,

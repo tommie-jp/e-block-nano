@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { minorTicks, niceTicks } from './ticks'
+import { axisLabel, minorTicks, niceTicks } from './ticks'
 
 describe('niceTicks', () => {
   test('unit steps over 0..3', () => {
@@ -61,5 +61,31 @@ describe('minorTicks', () => {
   test('退化ケースは空', () => {
     expect(minorTicks(1, 1)).toEqual([])
     expect(minorTicks(Number.NaN, 3)).toEqual([])
+  })
+})
+
+describe('axisLabel', () => {
+  test('pads the decimals to match the step (1 → 1.0 when the step is 0.5)', () => {
+    expect(axisLabel(1, 0.5)).toBe('1.0')
+    expect(axisLabel(1.5, 0.5)).toBe('1.5')
+    expect(axisLabel(0, 0.5)).toBe('0.0')
+  })
+
+  test('uses whole numbers when the step is whole', () => {
+    expect(axisLabel(2, 1)).toBe('2')
+    expect(axisLabel(20, 10)).toBe('20')
+  })
+
+  test('converts to the display unit (A → mA)', () => {
+    // 0.008A は 8mA。刻み 0.002A = 2mA なので小数は要らない
+    expect(axisLabel(0.008, 0.002, 1000)).toBe('8')
+  })
+
+  test('keeps enough decimals for a fine step', () => {
+    expect(axisLabel(0.25, 0.05)).toBe('0.25')
+  })
+
+  test('a zero step still prints something', () => {
+    expect(axisLabel(3, 0)).toBe('3')
   })
 })

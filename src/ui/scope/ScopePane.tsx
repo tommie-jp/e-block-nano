@@ -173,6 +173,7 @@ export const ScopePane = ({
           leftTraces={leftTraces}
           rightTraces={rightTraces}
           leftUnit={UNIT_DISPLAY[leftUnit].label}
+          leftScale={UNIT_DISPLAY[leftUnit].scale}
           rightAxis={rightAxis}
           rightScale={rightScale}
           sweeping={sweeping}

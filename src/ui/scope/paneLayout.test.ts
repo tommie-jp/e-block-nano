@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { paneHeight, panesForRender, zoomRange } from './paneLayout'
+import { paneHeight, panesForRender, withHeadroom, zoomRange } from './paneLayout'
 import { addPane, addTrace, createLayout, moveTrace, setPaneYRange } from './panes'
 import type { DrawTrace } from './traceSeries'
 
@@ -41,6 +41,24 @@ describe('zoomRange', () => {
   })
 })
 
+describe('withHeadroom', () => {
+  test('opens the swinging side by 10% so the peak is not glued to the frame', () => {
+    expect(withHeadroom({ min: 0, max: 10 })).toEqual({ min: 0, max: 11 })
+  })
+
+  test('keeps the 0 baseline where it is', () => {
+    expect(withHeadroom({ min: 0, max: 10 }).min).toBe(0)
+  })
+
+  test('opens both sides when the trace goes negative', () => {
+    expect(withHeadroom({ min: -10, max: 10 })).toEqual({ min: -12, max: 12 })
+  })
+
+  test('leaves a degenerate range alone', () => {
+    expect(withHeadroom({ min: 1, max: 1 })).toEqual({ min: 1, max: 1 })
+  })
+})
+
 describe('panesForRender', () => {
   test('a voltage-only pane draws on the left axis with no right axis', () => {
     const layout = addTrace(createLayout(), { kind: 'v', node: 'n1' })
@@ -50,7 +68,7 @@ describe('panesForRender', () => {
     expect(pane.leftUnit).toBe('V')
     expect(pane.rightUnit).toBeNull()
     expect(pane.rightAxis).toBeUndefined()
-    expect(pane.scales.yRange).toEqual({ min: 0, max: 2 })
+    expect(pane.scales.yRange).toEqual({ min: 0, max: 2.2 }) // 10% の余白つき
   })
 
   test('a second unit becomes the right axis, converted to display units', () => {
@@ -70,7 +88,8 @@ describe('panesForRender', () => {
 
     expect(pane.rightUnit).toBe('A')
     expect(pane.rightScale).toBe(1000)
-    expect(pane.rightAxis).toEqual({ min: 0, max: 2, unit: 'mA' }) // 0.002A → 2mA
+    expect(pane.rightAxis?.unit).toBe('mA')
+    expect(pane.rightAxis?.max).toBeCloseTo(2.2) // 0.002A → 2mA ＋ 10% の余白
   })
 
   test('an empty pane still has a drawable range', () => {
@@ -100,8 +119,8 @@ describe('panesForRender', () => {
       EMPTY,
     )
 
-    expect(panes[0].scales.yRange).toEqual({ min: 0, max: 1 })
-    expect(panes[1].scales.yRange).toEqual({ min: 0, max: 9 })
+    expect(panes[0].scales.yRange.max).toBeCloseTo(1.1)
+    expect(panes[1].scales.yRange.max).toBeCloseTo(9.9)
   })
 
   test('a manual Y range wins over the automatic one', () => {
@@ -121,7 +140,7 @@ describe('panesForRender', () => {
 
     const [pane] = panesForRender(layout, [vTrace('n1', [0, 4])], WIN, 240, 2, EMPTY)
 
-    expect(pane.scales.yRange).toEqual({ min: 0, max: 2 })
+    expect(pane.scales.yRange.max).toBeCloseTo(2.2) // 4V を ×2 ズーム ＋ 余白
   })
 
   test('a trace with no data yet is skipped, not drawn as garbage', () => {

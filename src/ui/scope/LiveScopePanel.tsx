@@ -76,6 +76,8 @@ export const LiveScopePanel = ({
   const [waveforms, setWaveforms] = useState<Waveforms | null>(null)
   const [timebase, setTimebase] = useState(1)
   const [swClosed, setSwClosed] = useState<Record<string, boolean>>({})
+  // スライダーで動かした抵抗値 [Ω] (表示用。実際の反映は alter)
+  const [rOhms, setROhms] = useState<Record<string, number>>({})
 
   const bufRef = useRef(createLiveBuffer(CAPACITY))
   const streamRef = useRef<ScopeStream | null>(null)
@@ -201,6 +203,9 @@ export const LiveScopePanel = ({
   }, [netlist])
 
   const resistors = netlist.elements.filter((e) => e.device.kind === 'resistor')
+  /** 抵抗値の表示 (1000 以上は kΩ)。例: 4.7 kΩ / 470 Ω */
+  const fmtOhms = (ohms: number): string =>
+    ohms >= 1000 ? `${(ohms / 1000).toFixed(1)} kΩ` : `${ohms.toFixed(0)} Ω`
   const latest = bufRef.current.latestTime()
   const hasData = !!waveforms && waveforms.time.length > 0
   const status = !canRun
@@ -276,10 +281,22 @@ export const LiveScopePanel = ({
                   max={10_000}
                   step={100}
                   defaultValue={e.device.ohms}
-                  onChange={(ev) =>
-                    streamRef.current?.alter(e.blockId, Number(ev.target.value))
-                  }
+                  onChange={(ev) => {
+                    const ohms = Number(ev.target.value)
+                    setROhms((m) => ({ ...m, [e.blockId]: ohms }))
+                    streamRef.current?.alter(e.blockId, ohms)
+                  }}
                 />
+                <span
+                  style={{
+                    minWidth: 64,
+                    fontSize: 12,
+                    fontVariantNumeric: 'tabular-nums',
+                    opacity: 0.9,
+                  }}
+                >
+                  {fmtOhms(rOhms[e.blockId] ?? e.device.ohms)}
+                </span>
               </label>
             )
           })}

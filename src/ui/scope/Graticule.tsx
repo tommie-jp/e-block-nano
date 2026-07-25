@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import type { Scales } from './geometry'
-import { minorTicks, niceTicks } from './ticks'
+import { axisLabel, minorTicks, niceTicks } from './ticks'
 
 /** X 軸 (時間) 目盛りの目安本数。cropped 窓でも綺麗な刻みになるよう多め */
 const X_TICKS = 6
@@ -15,9 +15,6 @@ const RIGHT_LABEL = '#ffd54f'
 const timeLabel = (t: number, span: number): string =>
   `${t.toFixed(span < 1 ? 3 : span < 10 ? 2 : 1)}`
 
-/** 右軸ラベルの桁数: レンジが小さいほど細かく */
-const rightLabel = (v: number, span: number): string =>
-  `${v.toFixed(span < 1 ? 2 : span < 10 ? 1 : 0)}`
 
 /**
  * オシロのグレーティクル: X (時間) / 左 Y の格子線・主/副目盛り・単位。
@@ -27,11 +24,14 @@ const rightLabel = (v: number, span: number): string =>
 export const Graticule = ({
   scales,
   leftUnit = 'V',
+  leftScale = 1,
   rightAxis,
 }: {
   scales: Scales
   /** 左軸の単位記号 (V / mA / mW) */
   leftUnit?: string
+  /** 左軸の値 → 表示単位の倍率 (A → mA なら 1000)。目盛りの数字に掛ける */
+  leftScale?: number
   /** 右軸のレンジと単位記号 (表示単位に換算済み) */
   rightAxis?: { min: number; max: number; unit: string }
 }): ReactElement => {
@@ -41,6 +41,8 @@ export const Graticule = ({
   const xMinor = minorTicks(win.start, win.end, X_TICKS)
   const yTicks = niceTicks(yRange.min, yRange.max, Y_TICKS)
   const yMinor = minorTicks(yRange.min, yRange.max, Y_TICKS)
+  // ラベルの小数桁は刻み幅に合わせる (1 と 1.5 が混ざらないように)
+  const yStep = yTicks.length > 1 ? yTicks[1] - yTicks[0] : 0
 
   // 右軸。plot 領域に rightAxis のレンジをマップ
   const iTicks = rightAxis ? niceTicks(rightAxis.min, rightAxis.max, Y_TICKS) : []
@@ -93,7 +95,7 @@ export const Graticule = ({
               className={zero ? 'grat-line zero' : 'grat-line'}
             />
             <text x={plot.left - 6} y={py + 3} className="grat-label" textAnchor="end">
-              {v}
+              {axisLabel(v, yStep, leftScale)}
             </text>
           </g>
         )
@@ -136,7 +138,7 @@ export const Graticule = ({
                   fill={RIGHT_LABEL}
                   textAnchor="start"
                 >
-                  {rightLabel(value, iSpan)}
+                  {axisLabel(value, iTicks.length > 1 ? iTicks[1] - iTicks[0] : iSpan)}
                 </text>
               </g>
             )

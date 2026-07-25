@@ -62,3 +62,17 @@ export const minorTicks = (
   }
   return ticks
 }
+
+/**
+ * 目盛りラベルの文字列。**刻み幅に合わせて小数桁を揃える** ので、
+ * 同じ軸のラベルが 1 / 1.5 のように不揃いにならない (1.0 / 1.5 になる)。
+ * `scale` は表示単位への倍率 (A → mA なら 1000)。
+ */
+export const axisLabel = (value: number, step: number, scale = 1): string => {
+  const shown = value * scale
+  const shownStep = Math.abs(step * scale)
+  if (!(shownStep > 0)) return `${shown}`
+  // 刻みが 0.5 なら 1 桁、1 なら 0 桁。1e-9 は 0.999… を 1 と見なすための余裕
+  const decimals = Math.max(0, Math.ceil(-Math.log10(shownStep) - 1e-9))
+  return shown.toFixed(decimals)
+}
