@@ -1,6 +1,3 @@
-import type { Waveforms } from '../../core/simulation/spice/mapResult'
-import type { NodeProbe } from '../waveProbes'
-
 /** チャート寸法 (SVG viewBox 座標)。目盛りラベル用にマージンを取る。
  *  right は電流(mA)の右軸ラベル、top/bottom は単位(V/s/mA)が目盛りと重ならない余白。 */
 export const CHART = {
@@ -38,26 +35,6 @@ export interface Scales {
 
 const clamp = (v: number, lo: number, hi: number): number =>
   v < lo ? lo : v > hi ? hi : v
-
-/**
- * 表示中プローブの電圧レンジ。常に 0V を含めて基準線が出るようにする。
- * 全区間 0 の退化ケースは [-1, 1] にして潰れを防ぐ。
- */
-export const voltageRange = (
-  waveforms: Waveforms,
-  probes: readonly NodeProbe[],
-): { min: number; max: number } => {
-  let min = 0
-  let max = 0
-  for (const p of probes) {
-    for (const v of waveforms.nodeVoltages[p.nodeId]) {
-      if (v < min) min = v
-      if (v > max) max = v
-    }
-  }
-  if (min === max) return { min: -1, max: 1 }
-  return { min, max }
-}
 
 /** グレーティクル用のプロット領域 (マージンを除いた内側) */
 export const plotBox = (): PlotBox => {
