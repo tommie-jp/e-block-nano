@@ -127,6 +127,7 @@ const emitElement = (
       const ref = `R${++seq.R}`
       lines.push(`${ref} ${node('a')} ${node('b')} ${d.ohms}`)
       deviceRefs[e.blockId] = ref.toLowerCase()
+      probes[e.blockId] = `@${ref.toLowerCase()}[i]` // 素子内部電流(.save で出す)
       return
     }
     case 'switch': {
@@ -134,12 +135,14 @@ const emitElement = (
       const ohms = e.state?.closed ? SWITCH_CLOSED_OHMS : SWITCH_OPEN_OHMS
       lines.push(`${ref} ${node('a')} ${node('b')} ${ohms}`)
       deviceRefs[e.blockId] = ref.toLowerCase()
+      probes[e.blockId] = `@${ref.toLowerCase()}[i]`
       return
     }
     case 'capacitor': {
       const ref = `C${++seq.C}`
       lines.push(`${ref} ${node('a')} ${node('b')} ${d.farads}`)
       deviceRefs[e.blockId] = ref.toLowerCase()
+      probes[e.blockId] = `@${ref.toLowerCase()}[i]`
       return
     }
     case 'led':

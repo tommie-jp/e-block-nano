@@ -29,6 +29,7 @@ const VV_CREAL = 8
 let mod: NgspiceModule | null = null
 let map: StreamMap | null = null
 let nodeNames: Readonly<Record<string, string>> = {}
+let currentProbes: Readonly<Record<string, string>> = {}
 let pending: LiveSample[] = []
 let lastSimT = 0
 let sampleCount = 0
@@ -65,7 +66,7 @@ function onSendData(vecvaluesall: number): number {
       names[i] = m.UTF8ToString(m.getValue(pvv + VV_NAME, 'i32'))
       values[i] = m.getValue(pvv + VV_CREAL, 'double')
     }
-    map = buildStreamMap({ text: '', nodeNames, currentProbes: {}, deviceRefs: {} }, names)
+    map = buildStreamMap({ text: '', nodeNames, currentProbes, deviceRefs: {} }, names)
   } else {
     for (let i = 0; i < count; i++) {
       const pvv = m.getValue(vecsa + i * 4, 'i32')
@@ -119,6 +120,11 @@ async function runLoop(text: string, cfg: StreamConfig): Promise<void> {
     if (line.trim()) cmd(`circbyline ${line}`)
   }
 
+  // 素子内部電流(@ref[i])を SendData に出すため保存対象に追加する。
+  // 'save all' で標準セット(ノード電圧＋ソース電流)、それに @形式のプローブを足す。
+  const extraSaves = Object.values(currentProbes).filter((p) => p.startsWith('@'))
+  cmd(extraSaves.length > 0 ? `save all ${extraSaves.join(' ')}` : 'save all')
+
   let bp = nextBreakpoint(0, cfg.intervalSec)
   cmd(`stop when time > ${bp}`)
   const wall0 = performance.now()
@@ -163,6 +169,7 @@ self.onmessage = async (e: MessageEvent<MainToWorker>): Promise<void> => {
         await sleep(0)
       }
       nodeNames = msg.nodeNames
+      currentProbes = msg.currentProbes
       if (!mod) await init()
       void runLoop(msg.text, msg.cfg) // 継続実行(await しない)
       break

@@ -15,7 +15,7 @@ describe('liveBuffer の窓を既存ロジックで測る', () => {
   for (let i = 0; i <= 1000; i++) {
     const t = i / 1000
     const v = Math.sin(2 * Math.PI * FREQ * t)
-    const s: LiveSample = { t, values: { gnd: 0, a: v } }
+    const s: LiveSample = { t, values: { gnd: 0, a: v }, currents: {} }
     buf.push(s)
   }
   const w = buf.toWindow()

@@ -50,6 +50,13 @@ describe('toSpice', () => {
     expect(Object.keys(deviceRefs).length).toBeGreaterThan(0)
   })
 
+  test('抵抗・スイッチの電流プローブは @ref[i] 形式 (.save で出す素子内部電流)', () => {
+    const { currentProbes } = toSpice(fixtureNetlist())
+    const probes = Object.values(currentProbes)
+    expect(probes.some((p) => /^@r\d+\[i\]$/.test(p))).toBe(true) // 抵抗 or スイッチ
+    expect(probes.some((p) => /^i\(v\d+\)$/.test(p))).toBe(true) // 電池は従来どおり
+  })
+
   test('switch resistance reflects open/closed state', () => {
     const openBoard = deserializeBoard(JSON.stringify(fixture))
     const switchId = openBoard.placements.find(

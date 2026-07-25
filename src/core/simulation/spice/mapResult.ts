@@ -12,10 +12,12 @@ export interface MappedResult {
   readonly elementCurrents: Record<string, number>
 }
 
-/** 過渡解析の時系列。time と、各 nodeId の電圧系列 */
+/** 過渡解析の時系列。time と、各 nodeId の電圧系列(＋任意で各 blockId の電流系列) */
 export interface Waveforms {
   readonly time: number[]
   readonly nodeVoltages: Record<string, number[]>
+  /** blockId → 電流系列[A]。ライブ(LiveScopePanel)でのみ付く。バッチ経路では省略 */
+  readonly elementCurrents?: Record<string, number[]>
 }
 
 /**

@@ -330,7 +330,11 @@ export const App = (): ReactElement => {
           onProbes={setWaveProbes}
           selectedBlockId={editor.selectedBlockId}
         />
-        <LiveScopePanel netlist={netlist} title="ライブオシロ (ngspice 連続)" />
+        <LiveScopePanel
+          netlist={netlist}
+          title="ライブオシロ (ngspice 連続)"
+          selectedBlockId={editor.selectedBlockId}
+        />
       </div>
     </div>
   )

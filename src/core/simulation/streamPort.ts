@@ -14,11 +14,13 @@ import type { Netlist } from '../netlist/build'
  * ASYNCIFY は使わない。
  */
 
-/** 1 タイムポイントの生サンプル: 時刻 t[s] と nodeId→電圧[V] */
+/** 1 タイムポイントの生サンプル: 時刻 t[s]、nodeId→電圧[V]、blockId→電流[A] */
 export interface LiveSample {
   readonly t: number
   /** nodeId → 電圧[V]。基準ノードは 0V を注入して含める */
   readonly values: Readonly<Record<string, number>>
+  /** blockId → 電流[A]。電流プローブのある素子(電池・LED/ダイオード)のみ */
+  readonly currents: Readonly<Record<string, number>>
 }
 
 /** ストリーム開始設定 */

@@ -6,6 +6,14 @@ import { createLiveBuffer } from './liveBuffer'
 const sample = (t: number, a: number, b: number): LiveSample => ({
   t,
   values: { gnd: 0, a, b },
+  currents: {},
+})
+
+/** 電圧 a と 素子 blk の電流を持つ 1 点 */
+const sampleWithI = (t: number, a: number, i: number): LiveSample => ({
+  t,
+  values: { gnd: 0, a },
+  currents: { blk: i },
 })
 
 describe('createLiveBuffer', () => {
@@ -60,6 +68,22 @@ describe('createLiveBuffer', () => {
     buf.clear()
     expect(buf.size()).toBe(0)
     expect(buf.toWindow().time).toEqual([])
+  })
+
+  test('電流系列 (elementCurrents) も保持して窓で返す', () => {
+    const buf = createLiveBuffer(10)
+    buf.push(sampleWithI(0, 1.9, 0.005))
+    buf.push(sampleWithI(1, 1.9, 0.003))
+    const w = buf.toWindow()
+    expect(w.nodeVoltages.a).toEqual([1.9, 1.9])
+    expect(w.elementCurrents?.blk).toEqual([0.005, 0.003])
+  })
+
+  test('電流プローブが無い回路では elementCurrents は空', () => {
+    const buf = createLiveBuffer(10)
+    buf.push(sample(0, 1, 2))
+    const w = buf.toWindow()
+    expect(w.elementCurrents).toEqual({})
   })
 
   test('toWindow は既存の測定ロジックが食える形 (time 昇順・同長系列)', () => {

@@ -43,7 +43,13 @@ export const createScopeStream = (): ScopeStream => {
         stop: cfg.horizon,
       })
       deviceRefs = spice.deviceRefs
-      send({ type: 'start', text: spice.text, nodeNames: spice.nodeNames, cfg })
+      send({
+        type: 'start',
+        text: spice.text,
+        nodeNames: spice.nodeNames,
+        currentProbes: spice.currentProbes,
+        cfg,
+      })
     },
     onSample(cb: (sample: LiveSample) => void): Unsubscribe {
       subs.add(cb)

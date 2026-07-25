@@ -66,3 +66,48 @@ describe('buildStreamMap / toLiveSample', () => {
     expect(s.values.b).toBe(9.9)
   })
 })
+
+describe('電流 (currentProbes) 対応', () => {
+  const net: SpiceNetlist = {
+    text: '',
+    nodeNames: { gnd: '0', a: 'n1' },
+    // blockId → 電流を読む SPICE 変数名 (電池 i(v1)、LED i(vmd1))
+    currentProbes: { 'blk-batt': 'i(v1)', 'blk-led': 'i(vmd1)' },
+    deviceRefs: {},
+  }
+
+  test('SendData の <vsrc>#branch を blockId 電流へマップ', () => {
+    // 実際の並び: 電流(#branch) + 電圧(裸ノード名) + time
+    const map = buildStreamMap(net, ['v1#branch', 'vmd1#branch', 'n1', 'time'])
+    const s = toLiveSample(map, [0.005, 0.003, 1.9, 1.5e-3])
+    expect(s.currents['blk-batt']).toBeCloseTo(0.005, 9) // i(v1) = v1#branch
+    expect(s.currents['blk-led']).toBeCloseTo(0.003, 9) // i(vmd1) = vmd1#branch
+    expect(s.values.a).toBe(1.9) // 電圧は従来どおり
+  })
+
+  test('抵抗の内部電流 @r1[i] (.save 由来) を blockId 電流へマップ', () => {
+    const rnet: SpiceNetlist = {
+      text: '',
+      nodeNames: { gnd: '0', a: 'n1' },
+      currentProbes: { 'blk-r': '@r1[i]', 'blk-batt': 'i(v1)' },
+      deviceRefs: {},
+    }
+    const map = buildStreamMap(rnet, ['@r1[i]', 'v1#branch', 'n1', 'time'])
+    const s = toLiveSample(map, [0.0011, 0.0011, 1.9, 1.5e-3])
+    expect(s.currents['blk-r']).toBeCloseTo(0.0011, 9) // @r1[i] そのまま一致
+    expect(s.currents['blk-batt']).toBeCloseTo(0.0011, 9) // i(v1) = v1#branch
+  })
+
+  test('電流プローブが無ければ currents は空', () => {
+    const noProbe: SpiceNetlist = {
+      text: '',
+      nodeNames: { gnd: '0', a: 'n1' },
+      currentProbes: {},
+      deviceRefs: {},
+    }
+    const map = buildStreamMap(noProbe, ['n1', 'time'])
+    const s = toLiveSample(map, [1.9, 1.5e-3])
+    expect(Object.keys(s.currents)).toEqual([])
+    expect(s.values.a).toBe(1.9)
+  })
+})
