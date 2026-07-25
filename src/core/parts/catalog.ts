@@ -187,8 +187,9 @@ export const PARTS: readonly Part[] = [
   },
   {
     /**
-     * 単発トリガ。周期を解析時間より長く取って 1 発だけ出す。
-     * 幅は単安定の時定数 (0.7·R·C) より短くないと復帰が見えない。
+     * トリガ源 = 「20ms 後に押して 200ms 保持するスイッチ」。周期を解析時間より
+     * 長く取って 1 回だけ動かす。タイマー回路の時定数 (RC = 100ms 級) より
+     * 保持を長くしてあるので、点灯までの遅れと、離した後の復帰が両方見える。
      */
     id: 'source-pulse',
     name: 'トリガ源 3V',
@@ -199,8 +200,8 @@ export const PARTS: readonly Part[] = [
         kind: 'pulse',
         lowVolts: 0,
         highVolts: 3,
-        delaySeconds: 1e-3,
-        widthSeconds: 2e-3,
+        delaySeconds: 0.02,
+        widthSeconds: 0.2,
         periodSeconds: 10,
       },
       pins: { plus: 'N', minus: 'S' },

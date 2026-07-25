@@ -5,6 +5,7 @@ import rcCharge from './rc-charge.json'
 import astableMultivibrator from './astable-multivibrator.json'
 import bistableFlipflop from './bistable-flipflop.json'
 import commonEmitterAmp from './common-emitter-amp.json'
+import delayTimer from './delay-timer.json'
 import emitterFollower from './emitter-follower.json'
 
 /**
@@ -93,6 +94,16 @@ export const SAMPLE_CIRCUITS: readonly SampleCircuit[] = [
       'スイッチを閉じるとその側が OFF になり、開いても状態は保持される(1 ビットの記憶)。' +
       '消灯側のコレクタが 3V まで上がらないのは、点灯側のベース電流が消灯側の LED を通るから。',
     data: bistableFlipflop,
+  },
+  {
+    id: 'delay-timer',
+    name: '09-遅延点灯タイマー',
+    description:
+      'CR 時定数で点灯を遅らせるタイマー。トリガ源(20ms 後に押して 200ms 保持)から' +
+      '100kΩ 経由で 1µF を充電し、ベース電圧が 0.7V に届いた時点で LED が点く。' +
+      '遅れは約 30ms ≈ R·C·ln(V/(V−Vbe))。離すとコンデンサが 100kΩ を通って放電し、' +
+      'ゆっくり消える。',
+    data: delayTimer,
   },
 ]
 

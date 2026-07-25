@@ -24,6 +24,17 @@ export interface TranPlan {
   readonly startup: TranStartup
 }
 
+/** パルス源はトリガ幅の何倍まで映すか (立ち上がり・保持・復帰が収まる長さ) */
+const PULSE_TAIL = 1.5
+
+/** パルス源の (遅延, 幅) 一覧 [s] */
+const pulseSpans = (netlist: Netlist): { delay: number; width: number }[] =>
+  netlist.elements.flatMap((e) =>
+    e.device.kind === 'ac-source' && e.device.wave.kind === 'pulse'
+      ? [{ delay: e.device.wave.delaySeconds, width: e.device.wave.widthSeconds }]
+      : [],
+  )
+
 /** 正弦波源の周波数一覧 [Hz] */
 const sineHertz = (netlist: Netlist): number[] =>
   netlist.elements.flatMap((e) =>
@@ -52,17 +63,27 @@ export const startupFor = (netlist: Netlist): TranStartup => {
 }
 
 /**
- * 時間窓: 正弦波源があれば「最低周波数の 5 周期」を映し、刻みは「最高周波数の
- * 1 周期を 200 点」で刻む。パルス源だけの回路は既定の窓のまま (単安定の
- * 時定数は回路の R·C 次第なので、09 を作るときに詰める)。
+ * 時間窓:
+ * - 正弦波源があれば「最低周波数の 5 周期」を映し、刻みは「最高周波数の 1 周期を
+ *   200 点」で刻む
+ * - パルス源なら「トリガ開始 → 幅の 1.5 倍後」まで映す (遅延点灯タイマーのように
+ *   トリガが続いている間の挙動と、切れた後の復帰が入る長さ)。刻みは窓の 1/1000
+ * - どちらも無ければ既定の窓
  */
 export const tranPlanFor = (netlist: Netlist): TranPlan => {
   const startup = startupFor(netlist)
   const freqs = sineHertz(netlist)
-  if (freqs.length === 0) return { ...DEFAULT_TRAN, startup }
-  return {
-    stop: CYCLES / Math.min(...freqs),
-    step: 1 / (POINTS_PER_CYCLE * Math.max(...freqs)),
-    startup,
+  if (freqs.length > 0) {
+    return {
+      stop: CYCLES / Math.min(...freqs),
+      step: 1 / (POINTS_PER_CYCLE * Math.max(...freqs)),
+      startup,
+    }
   }
+  const pulses = pulseSpans(netlist)
+  if (pulses.length > 0) {
+    const stop = Math.max(...pulses.map((p) => p.delay + p.width * PULSE_TAIL))
+    return { stop, step: stop / 1000, startup }
+  }
+  return { ...DEFAULT_TRAN, startup }
 }

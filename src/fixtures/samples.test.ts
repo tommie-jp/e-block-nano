@@ -217,3 +217,50 @@ describe('bistable flip-flop topology', () => {
     for (const q of npns) expect(q.pinNodes.emitter).toBe(nl.groundNode)
   })
 })
+
+/**
+ * 09 は「トリガ → CR 充電 → 点灯」の順序が回路で決まる。数値 (遅れ時間) は
+ * ngspice 側で見て、ここでは充電経路の形を守る。
+ */
+describe('delay timer topology', () => {
+  const netlist = () =>
+    buildNetlist(deserializeBoard(JSON.stringify(getSample('delay-timer')!.data)))
+
+  test('トリガ源 → 100kΩ → ベース、ベース ↔ GND に 1µF', () => {
+    const nl = netlist()
+    const q = nl.elements.find((e) => e.device.kind === 'transistor-npn')!
+    const src = nl.elements.find((e) => e.device.kind === 'ac-source')!
+    const r = nl.elements.find(
+      (e) => e.device.kind === 'resistor' && e.device.ohms === 100_000,
+    )!
+    const cap = nl.elements.find((e) => e.device.kind === 'capacitor')!
+
+    // 充電抵抗はトリガ源のプラスとベースの間
+    expect(new Set(Object.values(r.pinNodes))).toEqual(
+      new Set([src.pinNodes.plus, q.pinNodes.base]),
+    )
+    // タイミングコンデンサはベースと GND の間 (ここが時定数を決める)
+    expect(new Set(Object.values(cap.pinNodes))).toEqual(
+      new Set([q.pinNodes.base, nl.groundNode]),
+    )
+    // トリガ源のマイナスとエミッタは GND
+    expect(src.pinNodes.minus).toBe(nl.groundNode)
+    expect(q.pinNodes.emitter).toBe(nl.groundNode)
+  })
+
+  test('LED は 1kΩ とともにコレクタ側にある (点灯 = 石が ON)', () => {
+    const nl = netlist()
+    const q = nl.elements.find((e) => e.device.kind === 'transistor-npn')!
+    const led = nl.elements.find((e) => e.device.kind === 'led')!
+    const rc = nl.elements.find(
+      (e) => e.device.kind === 'resistor' && e.device.ohms === 1000,
+    )!
+    const battery = nl.elements.find((e) => e.device.kind === 'battery')!
+
+    // 電源 → LED → Rc → コレクタ の直列
+    expect(led.pinNodes.anode).toBe(battery.pinNodes.plus)
+    expect(new Set(Object.values(rc.pinNodes))).toEqual(
+      new Set([led.pinNodes.cathode, q.pinNodes.collector]),
+    )
+  })
+})

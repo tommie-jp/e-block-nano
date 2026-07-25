@@ -210,4 +210,44 @@ describe('sample circuits vs. analytic values (ngspice)', () => {
     expect(after.collectors[onIndex]!).toBeGreaterThan(before.collectors[onIndex]! + 1)
     expect(after.collectors[1 - onIndex]!).toBeLessThan(0.3)
   }, 60000)
+
+  test('09-遅延点灯タイマー: トリガから約 30ms 遅れて点灯し、離すと消える', async () => {
+    const netlist = buildNetlist(
+      deserializeBoard(JSON.stringify(getSample('delay-timer')!.data)),
+    )
+    const plan = tranPlanFor(netlist)
+    // パルス源から窓が決まる: 20ms + 200ms×1.5 = 320ms
+    expect(plan.stop).toBeCloseTo(0.32, 6)
+
+    const result = await createNgspiceSimulator().simulate(netlist, {
+      kind: 'tran',
+      ...plan,
+    })
+    const wf = result.waveforms!
+    const q = netlist.elements.find((e) => e.device.kind === 'transistor-npn')!
+    const src = netlist.elements.find((e) => e.device.kind === 'ac-source')!
+    const vb = wf.nodeVoltages[q.pinNodes.base]
+    const vc = wf.nodeVoltages[q.pinNodes.collector]
+    const vtrig = wf.nodeVoltages[src.pinNodes.plus]
+    const at = (i: number) => wf.time[i]
+
+    // トリガは 20ms で立ち上がる
+    const tTrig = at(vtrig.findIndex((v) => v > 1.5))
+    expect(tTrig).toBeGreaterThan(0.018)
+    expect(tTrig).toBeLessThan(0.025)
+
+    // 点灯 (コレクタ飽和) はその 20〜50ms 後 (解析解 R·C·ln(3/2.3) ≈ 27ms)
+    const iLit = vc.findIndex((v) => v < 0.5)
+    expect(iLit, 'LED should light within the window').toBeGreaterThan(0)
+    const delay = at(iLit) - tTrig
+    expect(delay).toBeGreaterThan(0.02)
+    expect(delay).toBeLessThan(0.05)
+
+    // ベースは Vbe でクランプ (充電が止まる)
+    expect(Math.max(...vb)).toBeGreaterThan(0.7)
+    expect(Math.max(...vb)).toBeLessThan(0.85)
+
+    // トリガを離した後は消える (コレクタが戻る)
+    expect(vc.at(-1)!).toBeGreaterThan(1.5)
+  }, 60000)
 })

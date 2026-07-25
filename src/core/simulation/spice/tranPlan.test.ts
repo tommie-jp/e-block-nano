@@ -43,8 +43,8 @@ const pulse: Element = {
       kind: 'pulse',
       lowVolts: 0,
       highVolts: 3,
-      delaySeconds: 1e-3,
-      widthSeconds: 2e-3,
+      delaySeconds: 0.02,
+      widthSeconds: 0.2,
       periodSeconds: 10,
     },
     pins: { plus: 'N', minus: 'S' },
@@ -79,9 +79,11 @@ describe('tranPlanFor', () => {
     expect(plan.step).toBeCloseTo(1.25e-6, 12) // 1 / (200 × 4kHz)
   })
 
-  test('パルス源だけの回路は動作点起動。窓は既定のまま (09 の実装時に詰める)', () => {
+  test('パルス源は「トリガ開始 → 幅の 1.5 倍後」まで映す', () => {
     const plan = tranPlanFor(netlist([pulse, resistor]))
     expect(plan.startup).toBe('operating-point')
-    expect(plan.stop).toBe(DEFAULT_TRAN.stop)
+    // delay 20ms + width 200ms × 1.5 = 320ms、刻みは 1/1000
+    expect(plan.stop).toBeCloseTo(0.32, 9)
+    expect(plan.step).toBeCloseTo(3.2e-4, 9)
   })
 })
