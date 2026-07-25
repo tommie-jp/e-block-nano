@@ -1,8 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { Netlist } from '../../core/netlist/build'
 import { differenceSeries, selectedMathNodes } from './mathTrace'
-import { laneBand } from './lanes'
-import type { PlotBox } from './geometry'
 
 const netlistWith = (elements: unknown[]): Netlist =>
   ({ nets: [], elements, groundNode: null }) as unknown as Netlist
@@ -38,21 +36,5 @@ describe('differenceSeries', () => {
 
   test('treats missing b entries as 0', () => {
     expect(differenceSeries([3, 2], [1])).toEqual([2, 2])
-  })
-})
-
-describe('laneBand', () => {
-  const plot: PlotBox = {
-    left: 46,
-    right: 588,
-    top: 10,
-    bottom: 210,
-    width: 542,
-    height: 200,
-  }
-
-  test('splits the plot into equal lanes centered on each band', () => {
-    expect(laneBand(0, 2, plot)).toEqual({ cy: 60, half: 45 })
-    expect(laneBand(1, 2, plot)).toEqual({ cy: 160, half: 45 })
   })
 })

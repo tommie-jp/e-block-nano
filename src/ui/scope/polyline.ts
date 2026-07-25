@@ -1,6 +1,4 @@
-import type { Lane } from './lanes'
 import { revealedSamples, sampleAt } from './sweep'
-import { rangeOf } from './traceSeries'
 
 /**
  * 系列 → SVG polyline の points 文字列。過渡は適応ステップで数万点になるので
@@ -53,19 +51,4 @@ export const headPointAt = (
 ): { x: number; y: number } | null => {
   const v = sampleAt(time, values, tHead)
   return v == null ? null : { x: x(tHead), y: y(v) }
-}
-
-/**
- * 段組み用の y 変換。系列の中点をレーン中心に置き、振幅をレーン半分高さ
- * (×gain) に正規化する。フラットな系列でも 0 除算しない。
- */
-export const stackedMapper = (
-  lane: Lane,
-  values: readonly number[],
-  gain: number,
-): Scale => {
-  const { lo, hi } = rangeOf(values)
-  const mid = (lo + hi) / 2
-  const amp = Math.max(1e-9, (hi - lo) / 2)
-  return (v) => lane.cy - ((v - mid) / amp) * lane.half * gain
 }

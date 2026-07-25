@@ -8,45 +8,46 @@ const Y_TICKS = 5
 /** 副目盛りの刻み長さ [px] と色 */
 const MINOR_LEN = 4
 const MINOR_STROKE = '#4a5a68'
-/** 電流(右)軸のラベル色 (WaveformChart の CURRENT_COLORS[0] と揃える) */
-const CURRENT_LABEL = '#ffd54f'
+/** 右軸のラベル色 (電流/電力トレースの 1 色目と揃える) */
+const RIGHT_LABEL = '#ffd54f'
 
 /** 時間ラベルの桁数: 窓幅が狭い (発振クロップ時) ほど細かく */
 const timeLabel = (t: number, span: number): string =>
   `${t.toFixed(span < 1 ? 3 : span < 10 ? 2 : 1)}`
 
-/** 電流ラベル(mA)の桁数: レンジが小さいほど細かく */
-const currentLabel = (mA: number, span: number): string =>
-  `${mA.toFixed(span < 1 ? 2 : span < 10 ? 1 : 0)}`
+/** 右軸ラベルの桁数: レンジが小さいほど細かく */
+const rightLabel = (v: number, span: number): string =>
+  `${v.toFixed(span < 1 ? 2 : span < 10 ? 1 : 0)}`
 
 /**
- * オシロのグレーティクル: X (時間) / Y (電圧) の格子線・主/副目盛り・単位。
- * currentRange (mA) を渡すと右側に電流の目盛り軸を足す。0V 基準線は強調。
- * 段組みでは Y (電圧) 軸が意味を持たないので showY=false で X (時間) のみ描く。
+ * オシロのグレーティクル: X (時間) / 左 Y の格子線・主/副目盛り・単位。
+ * `rightAxis` を渡すと右側にもう 1 本の目盛り軸を足す (単位はペインが決める。
+ * 値は表示単位に換算済みで渡すこと)。0 基準線は強調する。
  */
 export const Graticule = ({
   scales,
-  showY = true,
-  currentRange,
+  leftUnit = 'V',
+  rightAxis,
 }: {
   scales: Scales
-  showY?: boolean
-  /** 電流の右軸レンジ [mA]。渡すと右側に電流目盛りを描く */
-  currentRange?: { min: number; max: number }
+  /** 左軸の単位記号 (V / mA / mW) */
+  leftUnit?: string
+  /** 右軸のレンジと単位記号 (表示単位に換算済み) */
+  rightAxis?: { min: number; max: number; unit: string }
 }): ReactElement => {
   const { plot, win, yRange } = scales
   const span = win.end - win.start
   const xTicks = niceTicks(win.start, win.end, X_TICKS)
   const xMinor = minorTicks(win.start, win.end, X_TICKS)
-  const yTicks = showY ? niceTicks(yRange.min, yRange.max, Y_TICKS) : []
-  const yMinor = showY ? minorTicks(yRange.min, yRange.max, Y_TICKS) : []
+  const yTicks = niceTicks(yRange.min, yRange.max, Y_TICKS)
+  const yMinor = minorTicks(yRange.min, yRange.max, Y_TICKS)
 
-  // 電流右軸 (mA)。plot 領域に currentRange をマップ
-  const iTicks = currentRange ? niceTicks(currentRange.min, currentRange.max, Y_TICKS) : []
-  const iMinor = currentRange ? minorTicks(currentRange.min, currentRange.max, Y_TICKS) : []
-  const iSpan = currentRange ? currentRange.max - currentRange.min || 1 : 1
-  const iMin = currentRange?.min ?? 0
-  const yI = (mA: number): number => plot.bottom - ((mA - iMin) / iSpan) * plot.height
+  // 右軸。plot 領域に rightAxis のレンジをマップ
+  const iTicks = rightAxis ? niceTicks(rightAxis.min, rightAxis.max, Y_TICKS) : []
+  const iMinor = rightAxis ? minorTicks(rightAxis.min, rightAxis.max, Y_TICKS) : []
+  const iSpan = rightAxis ? rightAxis.max - rightAxis.min || 1 : 1
+  const iMin = rightAxis?.min ?? 0
+  const yI = (v: number): number => plot.bottom - ((v - iMin) / iSpan) * plot.height
 
   return (
     <g className="graticule">
@@ -113,13 +114,13 @@ export const Graticule = ({
         )
       })}
 
-      {/* 電流 右軸 (mA)。主目盛り(刻み+ラベル) と副目盛り */}
-      {currentRange && (
+      {/* 右軸。主目盛り(刻み+ラベル) と副目盛り */}
+      {rightAxis && (
         <>
-          {iTicks.map((mA) => {
-            const py = yI(mA)
+          {iTicks.map((value) => {
+            const py = yI(value)
             return (
-              <g key={`i${mA}`}>
+              <g key={`i${value}`}>
                 <line
                   x1={plot.right}
                   y1={py}
@@ -132,19 +133,19 @@ export const Graticule = ({
                   x={plot.right + 5}
                   y={py + 3}
                   className="grat-label"
-                  fill={CURRENT_LABEL}
+                  fill={RIGHT_LABEL}
                   textAnchor="start"
                 >
-                  {currentLabel(mA, iSpan)}
+                  {rightLabel(value, iSpan)}
                 </text>
               </g>
             )
           })}
-          {iMinor.map((mA) => {
-            const py = yI(mA)
+          {iMinor.map((value) => {
+            const py = yI(value)
             return (
               <line
-                key={`im${mA}`}
+                key={`im${value}`}
                 x1={plot.right}
                 y1={py}
                 x2={plot.right - MINOR_LEN}
@@ -158,23 +159,21 @@ export const Graticule = ({
       )}
 
       {/* 単位 (目盛りラベルと重ならない外側の角に置く) */}
-      {showY && (
-        <text x={4} y={plot.top + 4} className="grat-unit" textAnchor="start">
-          V
-        </text>
-      )}
+      <text x={4} y={plot.top + 4} className="grat-unit" textAnchor="start">
+        {leftUnit}
+      </text>
       <text x={plot.right} y={plot.bottom + 24} className="grat-unit" textAnchor="end">
         s
       </text>
-      {currentRange && (
+      {rightAxis && (
         <text
           x={plot.right + 5}
           y={plot.top + 4}
           className="grat-unit"
-          fill={CURRENT_LABEL}
+          fill={RIGHT_LABEL}
           textAnchor="start"
         >
-          mA
+          {rightAxis.unit}
         </text>
       )}
     </g>

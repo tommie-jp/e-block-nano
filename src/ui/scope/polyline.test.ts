@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { headPointAt, polylinePoints, revealedPoints, stackedMapper } from './polyline'
+import { headPointAt, polylinePoints, revealedPoints } from './polyline'
 
 const identity = (v: number): number => v
 const time = [0, 1, 2, 3, 4]
@@ -50,29 +50,5 @@ describe('headPointAt', () => {
 
   test('is null with no data (nothing to light up)', () => {
     expect(headPointAt([], [], 1, identity, identity)).toBeNull()
-  })
-})
-
-describe('stackedMapper', () => {
-  const lane = { cy: 100, half: 20 }
-
-  test('centers the series on the lane baseline', () => {
-    const y = stackedMapper(lane, [0, 10], 1)
-
-    expect(y(5)).toBe(100) // 中点はレーン中心
-    expect(y(10)).toBe(80) // 上端 = cy − half
-    expect(y(0)).toBe(120)
-  })
-
-  test('gain stretches the amplitude around the baseline', () => {
-    const y = stackedMapper(lane, [0, 10], 2)
-
-    expect(y(10)).toBe(60)
-  })
-
-  test('a flat series does not divide by zero', () => {
-    const y = stackedMapper(lane, [5, 5], 1)
-
-    expect(Number.isFinite(y(5))).toBe(true)
   })
 })

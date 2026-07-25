@@ -2,57 +2,54 @@ import type { ReactElement } from 'react'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import type { Scales } from './geometry'
 import { Graticule } from './Graticule'
-import { laneBand } from './lanes'
 import {
   headPointAt,
   MAX_POINTS,
   polylinePoints,
   revealedPoints,
-  stackedMapper,
 } from './polyline'
-import { MATH_KEY } from './traceSeries'
 import type { DrawTrace } from './traceSeries'
 
 interface TimePlotProps {
+  /** 左軸のスケール (時間 x と左単位の y) */
   scales: Scales
   time: readonly number[]
-  /** 電圧 (＋ Math) トレース */
-  traces: readonly DrawTrace[]
-  /** 素子電流トレース (overlay では右 mA 軸、段組みでは 1 レーンずつ) */
-  currentTraces: readonly DrawTrace[]
-  /** 電流の右軸レンジ [A] */
-  iRange: { min: number; max: number }
-  stacked: boolean
-  gain: number
+  /** 左軸で描くトレース */
+  leftTraces: readonly DrawTrace[]
+  /** 右軸で描くトレース (別単位。無ければ空) */
+  rightTraces: readonly DrawTrace[]
+  leftUnit: string
+  /** 右軸のレンジ (表示単位に換算済み) と単位記号 */
+  rightAxis?: { min: number; max: number; unit: string }
+  /** 右軸トレースの値 → 表示単位の倍率 (A→mA なら 1000) */
+  rightScale?: number
   /** 掃引再生中か。true の間は輝線が左→右に伸びる */
   sweeping: boolean
   /** 掃引ヘッドの時刻 [s] */
   tHead: number
-  /** 重ね比較する参照波形 (薄い破線) */
+  /** 重ね比較する参照波形 (薄い破線)。電圧トレースにのみ効く */
   reference?: Waveforms | null
-  /** ボードで選択中の素子。電流トレースを太線＋他を薄くして強調 */
+  /** ボードで選択中の素子。その電流/電力トレースを太線＋他を薄くして強調 */
   selectedBlockId?: string | null
 }
 
 /**
- * 時間ビューの描画。グレーティクル・参照波形・トレース (重ね / 段組み)・
- * 電流の右軸重ね・掃引輝点を描く。状態は持たず、渡された系列を描くだけ。
+ * 1 ペインの時間ビュー。グレーティクル・参照波形・左軸トレース・右軸トレース
+ * (別単位を破線で重ねる)・掃引輝点を描く。状態は持たず、渡された系列を描くだけ。
  */
 export const TimePlot = ({
   scales,
   time,
-  traces,
-  currentTraces,
-  iRange,
-  stacked,
-  gain,
+  leftTraces,
+  rightTraces,
+  leftUnit,
+  rightAxis,
+  rightScale = 1,
   sweeping,
   tHead,
   reference,
   selectedBlockId,
 }: TimePlotProps): ReactElement => {
-  const hasCurrents = currentTraces.length > 0
-  const allTraces = [...traces, ...currentTraces]
   const win = scales.win
 
   const points = (values: readonly number[], y: (v: number) => number): string =>
@@ -62,94 +59,40 @@ export const TimePlot = ({
   const head = (values: readonly number[], y: (v: number) => number) =>
     headPointAt(time, values, tHead, scales.x, y)
 
-  /** 電流 [A] → SVG y (overlay の右 mA 軸) */
-  const yI = (a: number): number => {
+  /** 右軸の生値 (A/W) → SVG y。レンジは表示単位なので値も換算して当てる */
+  const yRight = (raw: number): number => {
+    if (!rightAxis) return scales.plot.bottom
     const { top, bottom } = scales.plot
-    return bottom - ((a - iRange.min) / (iRange.max - iRange.min)) * (bottom - top)
+    const v = raw * rightScale
+    return bottom - ((v - rightAxis.min) / (rightAxis.max - rightAxis.min)) * (bottom - top)
   }
 
   return (
     <>
-      <Graticule
-        scales={scales}
-        showY={!stacked}
-        currentRange={
-          !stacked && hasCurrents
-            ? { min: iRange.min * 1000, max: iRange.max * 1000 }
-            : undefined
-        }
-      />
+      <Graticule scales={scales} leftUnit={leftUnit} rightAxis={rightAxis} />
 
-      {!stacked &&
-        reference &&
-        traces.map((t) => {
-          const ref = reference.nodeVoltages[t.key]
-          return ref ? (
+      {reference &&
+        leftTraces.map((t) =>
+          t.expr.kind === 'v' && reference.nodeVoltages[t.expr.node] ? (
             <polyline
               key={`ref-${t.key}`}
               className="wave-line reference"
               stroke={t.color}
               points={polylinePoints(
                 reference.time,
-                ref,
+                reference.nodeVoltages[t.expr.node],
                 win.start,
                 scales.x,
                 scales.y,
                 MAX_POINTS,
               )}
             />
-          ) : null
-        })}
+          ) : null,
+        )}
 
-      {(stacked ? allTraces : traces).map((t, i) => {
-        if (stacked) {
-          const lane = laneBand(i, allTraces.length, scales.plot)
-          const y = stackedMapper(lane, t.values, gain)
-          const dot = sweeping ? head(t.values, y) : null
-          return (
-            <g key={t.key}>
-              <line
-                x1={scales.plot.left}
-                y1={lane.cy}
-                x2={scales.plot.right}
-                y2={lane.cy}
-                className="lane-baseline"
-              />
-              <text
-                x={scales.plot.left + 2}
-                y={lane.cy - lane.half + 9}
-                className="lane-label"
-                fill={t.color}
-              >
-                {t.label}
-              </text>
-              {sweeping && (
-                <polyline
-                  className="wave-line sweep-bg"
-                  stroke={t.color}
-                  points={points(t.values, y)}
-                />
-              )}
-              <polyline
-                className="wave-line"
-                stroke={t.color}
-                points={sweeping ? revealed(t.values, y) : points(t.values, y)}
-              />
-              {dot && (
-                <circle
-                  className="sweep-dot"
-                  cx={dot.x}
-                  cy={dot.y}
-                  r={3}
-                  fill={t.color}
-                  style={{ color: t.color }}
-                />
-              )}
-            </g>
-          )
-        }
+      {leftTraces.map((t) => {
         const cls =
-          t.key === MATH_KEY
+          t.expr.kind === 'vdiff'
             ? 'wave-line math'
             : t.constant
               ? 'wave-line constant'
@@ -185,22 +128,22 @@ export const TimePlot = ({
         )
       })}
 
-      {/* overlay 時: 電流を右 mA 軸に破線で重ねる */}
-      {!stacked &&
-        currentTraces.map((t) => {
-          const sel = t.key === `i:${selectedBlockId}`
-          return (
-            <polyline
-              key={t.key}
-              className="wave-line"
-              stroke={t.color}
-              strokeDasharray="5 3"
-              strokeWidth={sel ? 2.5 : 1.2}
-              opacity={selectedBlockId && !sel ? 0.3 : 1}
-              points={sweeping ? revealed(t.values, yI) : points(t.values, yI)}
-            />
-          )
-        })}
+      {/* 別単位のトレースは右軸に破線で重ねる */}
+      {rightTraces.map((t) => {
+        const block = t.expr.kind === 'i' || t.expr.kind === 'p' ? t.expr.block : null
+        const sel = block !== null && block === selectedBlockId
+        return (
+          <polyline
+            key={t.key}
+            className="wave-line"
+            stroke={t.color}
+            strokeDasharray="5 3"
+            strokeWidth={sel ? 2.5 : 1.2}
+            opacity={selectedBlockId && !sel ? 0.3 : 1}
+            points={sweeping ? revealed(t.values, yRight) : points(t.values, yRight)}
+          />
+        )
+      })}
     </>
   )
 }

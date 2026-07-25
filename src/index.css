@@ -402,44 +402,6 @@ body {
   background: color-mix(in srgb, var(--warning, #b8860b) 14%, transparent);
 }
 
-.sim-panel {
-  margin-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.sim-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.sim-head button {
-  background: var(--panel);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 14px;
-  min-height: 40px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.sim-note {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.sim-frame {
-  width: 100%;
-  height: 420px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #000;
-}
-
 .waveform {
   width: 100%;
   max-width: 600px;
@@ -537,15 +499,52 @@ body {
 }
 
 /* 段組み表示: 各チャンネルの基準線とラベル */
-.lane-baseline {
-  stroke: rgba(255, 255, 255, 0.16);
-  stroke-width: 1;
+.scope-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.lane-label {
-  font-size: 9px;
-  font-weight: 700;
+/* ペイン見出し: トレースの札・Y 軸設定・閉じる */
+.pane-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
 }
+
+.pane-axis {
+  color: #8fa3b3;
+  min-width: 26px;
+}
+
+.pane-trace {
+  background: none;
+  border: 1px solid #3a4a58;
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pane-spacer {
+  flex: 1;
+}
+
+.pane-range input {
+  width: 5.5em;
+  margin: 0 2px;
+}
+
+.pane-remove {
+  background: none;
+  border: none;
+  color: #8fa3b3;
+  cursor: pointer;
+  font-size: 14px;
+}
+
 
 /* XY モード (リサージュ) の軌跡 */
 .xy-line {

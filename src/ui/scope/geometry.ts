@@ -36,25 +36,29 @@ export interface Scales {
 const clamp = (v: number, lo: number, hi: number): number =>
   v < lo ? lo : v > hi ? hi : v
 
-/** グレーティクル用のプロット領域 (マージンを除いた内側) */
-export const plotBox = (): PlotBox => {
-  const { W, H, M } = CHART
+/**
+ * グレーティクル用のプロット領域 (マージンを除いた内側)。
+ * `height` はペインの SVG 高さ (複数ペインでは 1 枚を低くする)。
+ */
+export const plotBox = (height: number = CHART.H): PlotBox => {
+  const { W, M } = CHART
   return {
     left: M.left,
     right: W - M.right,
     top: M.top,
-    bottom: H - M.bottom,
+    bottom: height - M.bottom,
     width: W - M.left - M.right,
-    height: H - M.top - M.bottom,
+    height: height - M.top - M.bottom,
   }
 }
 
-/** 窓 (時間) と電圧レンジからプロット領域のスケール変換を作る */
+/** 窓 (時間) と Y レンジからプロット領域のスケール変換を作る */
 export const makeScales = (
   win: { start: number; end: number },
   yRange: { min: number; max: number },
+  height: number = CHART.H,
 ): Scales => {
-  const plot = plotBox()
+  const plot = plotBox(height)
   const tSpan = win.end - win.start || 1
   const vSpan = yRange.max - yRange.min || 1
   return {

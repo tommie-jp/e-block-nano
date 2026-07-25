@@ -10,6 +10,7 @@ import {
   paneUnits,
   removePane,
   removeTrace,
+  syncLayout,
   toggleTraceExpr,
   toggleVisible,
 } from './panes'
@@ -149,5 +150,36 @@ describe('panes', () => {
     const power = l.traces[2]
 
     expect(moveTrace(l, power.id, l.panes[0].id)).toBe(l)
+  })
+})
+
+describe('syncLayout', () => {
+  test('adds traces for expressions that appeared', () => {
+    const l = syncLayout(createLayout(), [V1, I1])
+
+    expect(l.traces.map((t) => t.expr)).toEqual([V1, I1])
+  })
+
+  test('drops traces whose expression is gone (probe removed / node vanished)', () => {
+    const before = syncLayout(createLayout(), [V1, I1])
+
+    expect(syncLayout(before, [V1]).traces.map((t) => t.expr)).toEqual([V1])
+  })
+
+  test('keeps the pane a trace was moved to', () => {
+    const moved = (() => {
+      const l = addPane(syncLayout(createLayout(), [V1]))
+      return moveTrace(l, l.traces[0].id, l.panes[1].id)
+    })()
+
+    const after = syncLayout(moved, [V1, I1])
+
+    expect(after.traces[0].paneId).toBe(moved.panes[1].id)
+  })
+
+  test('is a no-op when nothing changed (same object back)', () => {
+    const l = syncLayout(createLayout(), [V1])
+
+    expect(syncLayout(l, [V1])).toBe(l)
   })
 })

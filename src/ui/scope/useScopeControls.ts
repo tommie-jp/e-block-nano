@@ -6,20 +6,18 @@ import type { Slope } from './trigger'
 /** 表示モード: 時間 / XY (リサージュ) / FFT */
 export type View = 'time' | 'xy' | 'fft'
 
-/** 振幅つまみの段 (段組み表示でレーン内の振幅を伸縮する) */
+/** 振幅つまみの段 (自動 Y レンジをこの倍率で拡大 = 縦ズーム) */
 export const GAINS = [0.5, 1, 2, 4, 8]
 /** 掃引 1 周にかける壁時計秒。ベンチ DSO の掃引速度つまみ相当 */
 export const SWEEP_SECONDS = [0.5, 1, DEFAULT_SWEEP_SECONDS, 4]
 
 /**
- * オシロのつまみ (表示モード・段組み・振幅・AC・トリガ・掃引・カーソル・
- * XY/FFT のソース選択) をまとめた UI 状態。描画側から状態管理を切り離す。
+ * オシロのつまみ (表示モード・振幅・AC・トリガ・掃引・カーソル・XY/FFT の
+ * ソース選択) をまとめた UI 状態。描画側から状態管理を切り離す。
  */
 export interface ScopeControls {
   view: View
   setView: (v: View) => void
-  stackedMode: boolean
-  toggleStacked: () => void
   gain: number
   gainUp: () => void
   gainDown: () => void
@@ -52,7 +50,6 @@ export interface ScopeControls {
 
 export const useScopeControls = (): ScopeControls => {
   const [view, setView] = useState<View>('time')
-  const [mode, setMode] = useState<'overlay' | 'stacked'>('overlay')
   const [gain, setGain] = useState(1)
   const [ac, setAc] = useState(false)
   const [trigOn, setTrigOn] = useState(false)
@@ -68,8 +65,6 @@ export const useScopeControls = (): ScopeControls => {
   return {
     view,
     setView,
-    stackedMode: mode === 'stacked',
-    toggleStacked: () => setMode((m) => (m === 'stacked' ? 'overlay' : 'stacked')),
     gain,
     gainUp: () =>
       setGain((g) => GAINS[Math.min(GAINS.length - 1, GAINS.indexOf(g) + 1)]),

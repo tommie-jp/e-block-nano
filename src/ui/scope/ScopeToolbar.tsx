@@ -10,6 +10,8 @@ interface ScopeToolbarProps {
   cursorsUsable: boolean
   /** カーソルの ON/OFF。ON にするとき窓とレンジが要るので親が握る */
   onToggleCursors: () => void
+  /** 空のペインを 1 枚足す (トレースはペイン見出しの札で移す) */
+  onAddPane: () => void
   /** XY / FFT のソース候補 (表示中のノード) */
   visible: readonly NodeProbe[]
   xX: string
@@ -28,6 +30,7 @@ export const ScopeToolbar = ({
   hasData,
   cursorsUsable,
   onToggleCursors,
+  onAddPane,
   visible,
   xX,
   xY,
@@ -93,12 +96,11 @@ export const ScopeToolbar = ({
         <div className="wave-controls">
           <button
             type="button"
-            className="toggle"
-            aria-pressed={c.stackedMode}
             disabled={!hasData}
-            onClick={c.toggleStacked}
+            onClick={onAddPane}
+            title="ペインを 1 枚増やす (トレースは見出しの札で移す)"
           >
-            段組み
+            ペイン追加
           </button>
           <span className="gain-control">
             振幅

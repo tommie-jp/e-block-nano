@@ -146,7 +146,12 @@ export const addPane = (l: ScopeLayout): ScopeLayout => {
   return { ...l, seq, panes: [...l.panes, { id: `pane-${seq}`, yMode: 'auto' }] }
 }
 
-/** ペインを閉じる。中のトレースも一緒に消える。最後の 1 枚は閉じられない */
+/**
+ * ペインを閉じる。中のトレースも一緒に消える。最後の 1 枚は閉じられない。
+ * ※ 現状トレース集合はプローブ (props) が権威なので、閉じた直後の
+ * {@link syncLayout} でそのトレースは残りのペインへ配属し直される
+ * (プローブは外れない)。L2-e で一本化したら「閉じる = 外す」になる。
+ */
 export const removePane = (l: ScopeLayout, paneId: string): ScopeLayout => {
   if (l.panes.length <= 1 || !l.panes.some((p) => p.id === paneId)) return l
   return {
@@ -171,6 +176,25 @@ export const moveTrace = (
     ...l,
     traces: l.traces.map((t) => (t.id === traceId ? { ...t, paneId } : t)),
   }
+}
+
+/**
+ * いま画面に出ている式の集合へレイアウトを追従させる (immutable)。
+ * 消えた式のトレースは外し、増えた式は単位に合うペインへ足す。ペイン配属は
+ * 既存分をそのまま残すので、プローブを足しても他のトレースは動かない。
+ */
+export const syncLayout = (
+  l: ScopeLayout,
+  exprs: readonly TraceExpr[],
+): ScopeLayout => {
+  const wanted = new Map(exprs.map((e) => [exprKey(e), e]))
+  const kept = l.traces.filter((t) => wanted.has(exprKey(t.expr)))
+  const removed = kept.length !== l.traces.length
+  let next: ScopeLayout = removed ? { ...l, traces: kept } : l
+  for (const [key, expr] of wanted) {
+    if (!next.traces.some((t) => exprKey(t.expr) === key)) next = addTrace(next, expr)
+  }
+  return next
 }
 
 /** ペインの Y レンジ設定 (auto ↔ manual) */

@@ -1,29 +1,32 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { PointerEvent, ReactElement } from 'react'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import { measureSeries } from '../../core/simulation/spice/measure'
 import type { NodeProbe } from '../waveProbes'
 import { dominantOscillation, viewWindow } from '../waveProbes'
+import { exprKey } from '../../core/scope/traceExpr'
 import { Cursors } from './Cursors'
 import type { CursorId } from './Cursors'
 import { fmtHz, fmtT, fmtV } from './format'
-import { CHART, DEFAULT_WINDOW, DEFAULT_Y_RANGE, makeScales } from './geometry'
+import { CHART, DEFAULT_WINDOW, DEFAULT_Y_RANGE } from './geometry'
 import { FftPlot } from './FftPlot'
 import type { MathNodes } from './mathTrace'
 import { differenceSeries } from './mathTrace'
 import { MeasurementTable } from './MeasurementTable'
+import { paneHeight, paneScales, panesForRender } from './paneLayout'
+import {
+  addPane,
+  createLayout,
+  moveTrace,
+  removePane,
+  setPaneYRange,
+  syncLayout,
+} from './panes'
 import { ScopeLegend } from './ScopeLegend'
+import { ScopePane } from './ScopePane'
 import { ScopeToolbar } from './ScopeToolbar'
 import { sweepHeadTime } from './sweep'
-import { TimePlot } from './TimePlot'
-import {
-  buildCurrentTraces,
-  buildVoltageTraces,
-  currentRange,
-  dcOffsets,
-  rangeOf,
-  voltageRange,
-} from './traceSeries'
+import { buildCurrentTraces, buildVoltageTraces, dcOffsets, rangeOf } from './traceSeries'
 import { triggerTime } from './trigger'
 import { useScopeControls } from './useScopeControls'
 import { useSweep } from './useSweep'
@@ -132,11 +135,6 @@ export const WaveformChart = ({
     () => (waveforms ? dcOffsets(waveforms, probes) : new Map<string, number>()),
     [waveforms, probes],
   )
-  const yRange = useMemo(
-    () => (hasData ? voltageRange(waveforms, probes, c.ac, dc) : DEFAULT_Y_RANGE),
-    [hasData, waveforms, probes, c.ac, dc],
-  )
-  const scales = useMemo(() => makeScales(win, yRange), [win, yRange])
 
   // 掃引輝点: 時間ビューでのみ。演算(ngspice)とは無関係に 60fps で位相を進め、
   // 取得済み波形を左→右へ掃引再生する (DSO の掃引を模す)
@@ -162,16 +160,32 @@ export const WaveformChart = ({
     () => (currents ? buildCurrentTraces(currents, currentLabels) : []),
     [currents, currentLabels],
   )
-  const iRange = useMemo(() => currentRange(currentTraces), [currentTraces])
+  const drawTraces = useMemo(
+    () => (hasData ? [...traces, ...currentTraces] : []),
+    [hasData, traces, currentTraces],
+  )
 
-  // --- カーソル (時間ビュー・重ね表示時のみ) ---
-  const stacked = c.view === 'time' && c.stackedMode
-  const cursorsUsable = hasData && c.view === 'time' && !stacked
+  // --- ペイン (LTspice のプロットペイン)。X 軸は共通、Y 軸はペインごと ---
+  const [layout, setLayout] = useState(createLayout)
+  const synced = useMemo(
+    () => syncLayout(layout, drawTraces.map((t) => t.expr)),
+    [layout, drawTraces],
+  )
+  if (synced !== layout) setLayout(synced)
+  const height = paneHeight(synced.panes.length)
+  const panes = useMemo(
+    () => panesForRender(synced, drawTraces, win, height, c.gain, DEFAULT_Y_RANGE),
+    [synced, drawTraces, win, height, c.gain],
+  )
+  // カーソル・XY・FFT は先頭ペインの座標系で扱う
+  const scales = panes[0]?.scales ?? paneScales(win, DEFAULT_Y_RANGE, height)
+
+  const cursorsUsable = hasData && c.view === 'time'
   const toSvg = (e: PointerEvent): { x: number; y: number } => {
     const rect = svgRef.current!.getBoundingClientRect()
     return {
       x: ((e.clientX - rect.left) / rect.width) * CHART.W,
-      y: ((e.clientY - rect.top) / rect.height) * CHART.H,
+      y: ((e.clientY - rect.top) / rect.height) * height,
     }
   }
   const grab = (id: CursorId, e: PointerEvent): void => {
@@ -215,6 +229,48 @@ export const WaveformChart = ({
   const colorOf = (id: string): string =>
     probes.find((p) => p.nodeId === id)?.color ?? '#4fc3f7'
 
+  // 「準備中…」「基準ノードが無い」などの帯。先頭ペイン (時間以外は本体) に重ねる
+  const statusOverlay = status ? (
+    <g>
+      <rect
+        x={scales.plot.left}
+        y={plotCy - 26}
+        width={scales.plot.width}
+        height={hasProgress ? 66 : 52}
+        rx={10}
+        className={`wave-overlay-bg${statusIsError ? ' error' : ''}`}
+      />
+      <text
+        x={plotCx}
+        y={hasProgress ? plotCy - 8 : plotCy}
+        textAnchor="middle"
+        className={`wave-overlay${statusIsError ? ' error' : ''}`}
+      >
+        {status}
+      </text>
+      {hasProgress && (
+        <>
+          <rect
+            x={plotCx - 110}
+            y={plotCy + 14}
+            width={220}
+            height={8}
+            rx={4}
+            className="wave-progress-track"
+          />
+          <rect
+            x={plotCx - 110}
+            y={plotCy + 14}
+            width={(220 * (progress ?? 0)) / 100}
+            height={8}
+            rx={4}
+            className="wave-progress-fill"
+          />
+        </>
+      )}
+    </g>
+  ) : null
+
   return (
     <div className="wave-wrap">
       {title && (
@@ -233,98 +289,86 @@ export const WaveformChart = ({
           )}
         </div>
       )}
-      <svg
-        ref={svgRef}
-        className="waveform"
-        viewBox={`0 0 ${CHART.W} ${CHART.H}`}
-        role="img"
-        onPointerMove={onMove}
-        onPointerUp={() => c.setDragging(null)}
-      >
-        {c.view === 'time' && (
-          <TimePlot
-            scales={scales}
+      {c.view === 'time' ? (
+        panes.map((p, i) => (
+          <ScopePane
+            key={p.pane.id}
+            pane={p.pane}
+            traces={p.traces}
+            scales={p.scales}
+            height={height}
             time={hasData ? time : []}
-            traces={hasData ? traces : []}
-            currentTraces={hasData ? currentTraces : []}
-            iRange={iRange}
-            stacked={stacked}
-            gain={c.gain}
+            leftUnit={p.leftUnit}
+            rightUnit={p.rightUnit}
+            rightAxis={p.rightAxis}
+            rightScale={p.rightScale}
             sweeping={sweeping}
             tHead={tHead}
             reference={hasData ? reference : null}
             selectedBlockId={selectedBlockId}
+            canRemove={panes.length > 1}
+            onRemove={() => setLayout((l) => removePane(l, p.pane.id))}
+            onMoveTrace={(key) =>
+              setLayout((l) => {
+                const trace = l.traces.find((t) => exprKey(t.expr) === key)
+                if (!trace) return l
+                const order = l.panes.findIndex((x) => x.id === p.pane.id)
+                const next = l.panes[(order + 1) % l.panes.length]
+                return moveTrace(l, trace.id, next.id)
+              })
+            }
+            onSetYRange={(range) =>
+              setLayout((l) => setPaneYRange(l, p.pane.id, range))
+            }
+            svgRef={i === 0 ? svgRef : undefined}
+            onPointerMove={i === 0 ? onMove : undefined}
+            onPointerUp={i === 0 ? () => c.setDragging(null) : undefined}
+            overlay={
+              i === 0 ? (
+                <>
+                  {c.cursorsOn && cursorsUsable && (
+                    <Cursors scales={p.scales} cursor={c.cursor} onGrab={grab} />
+                  )}
+                  {statusOverlay}
+                </>
+              ) : undefined
+            }
           />
-        )}
-        {c.view === 'xy' && hasData && xX && xY && (
-          <XYPlot
-            waveforms={waveforms}
-            xId={xX}
-            yId={xY}
-            xLabel={labelOf(xX)}
-            yLabel={labelOf(xY)}
-          />
-        )}
-        {c.view === 'fft' && hasData && fftId && (
-          <FftPlot
-            waveforms={waveforms}
-            nodeId={fftId}
-            color={colorOf(fftId)}
-            label={labelOf(fftId)}
-          />
-        )}
-
-        {c.cursorsOn && cursorsUsable && (
-          <Cursors scales={scales} cursor={c.cursor} onGrab={grab} />
-        )}
-        {status && (
-          <g>
-            <rect
-              x={scales.plot.left}
-              y={plotCy - 26}
-              width={scales.plot.width}
-              height={hasProgress ? 66 : 52}
-              rx={10}
-              className={`wave-overlay-bg${statusIsError ? ' error' : ''}`}
+        ))
+      ) : (
+        <svg
+          className="waveform"
+          viewBox={`0 0 ${CHART.W} ${height}`}
+          role="img"
+        >
+          {c.view === 'xy' && hasData && xX && xY && (
+            <XYPlot
+              waveforms={waveforms}
+              xId={xX}
+              yId={xY}
+              xLabel={labelOf(xX)}
+              yLabel={labelOf(xY)}
             />
-            <text
-              x={plotCx}
-              y={hasProgress ? plotCy - 8 : plotCy}
-              textAnchor="middle"
-              className={`wave-overlay${statusIsError ? ' error' : ''}`}
-            >
-              {status}
-            </text>
-            {hasProgress && (
-              <>
-                <rect
-                  x={plotCx - 110}
-                  y={plotCy + 14}
-                  width={220}
-                  height={8}
-                  rx={4}
-                  className="wave-progress-track"
-                />
-                <rect
-                  x={plotCx - 110}
-                  y={plotCy + 14}
-                  width={(220 * (progress ?? 0)) / 100}
-                  height={8}
-                  rx={4}
-                  className="wave-progress-fill"
-                />
-              </>
-            )}
-          </g>
-        )}
-      </svg>
+          )}
+          {c.view === 'fft' && hasData && fftId && (
+            <FftPlot
+              waveforms={waveforms}
+              nodeId={fftId}
+              color={colorOf(fftId)}
+              label={labelOf(fftId)}
+            />
+          )}
+          {statusOverlay}
+        </svg>
+      )}
 
       <ScopeToolbar
         controls={c}
         hasData={hasData}
         cursorsUsable={cursorsUsable}
+        onAddPane={() => setLayout(addPane)}
         onToggleCursors={() =>
-          c.cursorsOn ? c.disableCursors() : c.enableCursors(win, yRange)
+          c.cursorsOn ? c.disableCursors() : c.enableCursors(win, scales.yRange)
         }
         visible={visible}
         xX={xX}
