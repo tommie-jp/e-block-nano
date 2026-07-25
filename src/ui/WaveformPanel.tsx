@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import type { Netlist } from '../core/netlist/build'
 import type { SimulationPort } from '../core/simulation/port'
-import { resampleToAudio } from '../core/simulation/spice/audio'
+import { audioSpeedup, resampleToAudio } from '../core/simulation/spice/audio'
 import type { Waveforms } from '../core/simulation/spice/mapResult'
 import { tranPlanFor } from '../core/simulation/spice/tranPlan'
 import type { NodeProbe } from './waveProbes'
@@ -32,8 +32,6 @@ interface WaveformPanelProps {
   selectedBlockId?: string | null
 }
 
-// 音を鳴らすときの目標基本周波数 [Hz] (低速の発振をここへピッチシフト)
-const AUDIO_TARGET_HZ = 330
 
 /**
  * 過渡解析(.tran)を on-demand 実行し、ノード電圧の時系列を折れ線表示する。
@@ -138,8 +136,9 @@ export const WaveformPanel = ({
   /**
    * 表示中の波形(最も振幅の大きい=発振しているノード)を Web Audio で鳴らす
    * トグル。再生中に押すと止める。発振が低速(数Hz)でもそのままでは聞こえない
-   * ので、基本周波数を推定して可聴域(AUDIO_TARGET_HZ)へ playbackRate で
-   * ピッチシフトする。
+   * ので、可聴域より遅い発振は固定倍率(`audioSpeedup`)で早回しする。
+   * 倍率を固定するのが要点で、測定周波数で正規化すると回路を変えても音程が
+   * 変わらなくなる (電子オルガンのつまみが効かない)。
    */
   const togglePlay = (): void => {
     if (playing) {
@@ -168,7 +167,9 @@ export const WaveformPanel = ({
       const src = ctx.createBufferSource()
       src.buffer = buffer
       src.loop = true
-      src.playbackRate.value = Math.min(500, Math.max(1, AUDIO_TARGET_HZ / freq))
+      // 倍率は固定 (audioSpeedup)。測定周波数で正規化すると可変抵抗を回しても
+      // 音程が変わらなくなるため
+      src.playbackRate.value = audioSpeedup(freq)
       const gain = ctx.createGain()
       gain.gain.value = 0.2 // 矩形波は大きいので絞る
       src.connect(gain).connect(ctx.destination)

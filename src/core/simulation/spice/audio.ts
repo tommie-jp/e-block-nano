@@ -38,3 +38,20 @@ export const resampleToAudio = (
   }
   return out
 }
+
+/** 可聴域の下限 [Hz]。これより遅い発振はそのままでは聞こえない */
+const AUDIBLE_MIN_HZ = 20
+/**
+ * 低速発振を鳴らすときの再生倍率 (固定)。
+ * 測定周波数で割って一定の高さに正規化すると、可変抵抗を回しても音程が変わらず
+ * 「つまみで音程を変える」体験が成立しない。倍率を固定すれば
+ * 音程比 = 発振周波数比になり、回路の変化がそのまま音になる。
+ */
+export const AUDIO_SPEEDUP = 100
+
+/**
+ * 過渡波形をそのまま鳴らすときの再生速度。可聴域より遅い発振だけ倍速にする。
+ * (1kHz の増幅器のように既に可聴域の回路は等倍で鳴らす)
+ */
+export const audioSpeedup = (freq: number): number =>
+  freq > 0 && freq < AUDIBLE_MIN_HZ ? AUDIO_SPEEDUP : 1

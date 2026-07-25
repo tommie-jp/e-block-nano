@@ -6,6 +6,7 @@ import astableMultivibrator from './astable-multivibrator.json'
 import bistableFlipflop from './bistable-flipflop.json'
 import commonEmitterAmp from './common-emitter-amp.json'
 import delayTimer from './delay-timer.json'
+import electronicOrgan from './electronic-organ.json'
 import emitterFollower from './emitter-follower.json'
 
 /**
@@ -104,6 +105,18 @@ export const SAMPLE_CIRCUITS: readonly SampleCircuit[] = [
       '遅れは約 30ms ≈ R·C·ln(V/(V−Vbe))。離すとコンデンサが 100kΩ を通って放電し、' +
       'ゆっくり消える。',
     data: delayTimer,
+  },
+  {
+    id: 'electronic-organ',
+    name: '10-電子オルガン',
+    description:
+      '04 のマルチバイブレータのベース抵抗を可変抵抗 100kΩ に替えたもの。半周期は' +
+      '0.7·R·C なので、つまみを回すと発振周波数が 1.1〜2.2Hz の範囲で変わる。' +
+      '「音を鳴らす」は固定倍率(100倍速)で再生するので、つまみがそのまま音程になる' +
+      '(110〜220Hz)。ライブオシロ実行中につまみを回すと掃引の速さが変わる。' +
+      'つまみを速い側にすると過渡計算が t≈1.3s で打ち切られることがある' +
+      '(ブラウザ ngspice の収束限界)。数周期は出るので観測はできる。',
+    data: electronicOrgan,
   },
 ]
 

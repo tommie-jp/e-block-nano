@@ -4,6 +4,9 @@ import { deserializeBoard } from '../core/persistence/boardFile'
 import { createNgspiceSimulator } from '../io/ngspiceSimulator'
 import { getSample } from './circuits/samples'
 import { tranPlanFor } from '../core/simulation/spice/tranPlan'
+import { setWiperPct } from '../core/grid/board'
+import { measureSeries } from '../core/simulation/spice/measure'
+import { audioSpeedup } from '../core/simulation/spice/audio'
 
 /**
  * サンプル回路を実 ngspice-wasm で解いて解析解と突き合わせる統合テスト。
@@ -250,4 +253,39 @@ describe('sample circuits vs. analytic values (ngspice)', () => {
     // トリガを離した後は消える (コレクタが戻る)
     expect(vc.at(-1)!).toBeGreaterThan(1.5)
   }, 60000)
+
+  test('10-電子オルガン: つまみを回すと発振周波数が単調に変わる', async () => {
+    const board = deserializeBoard(
+      JSON.stringify(getSample('electronic-organ')!.data),
+    )
+    const pot = board.placements.find((p) => p.partId === 'potentiometer-100k')!
+    const sim = createNgspiceSimulator()
+
+    /** ワイパ位置を変えて発振周波数を測る (一番振れているノード = コレクタ) */
+    const freqAt = async (pct: number): Promise<number | null> => {
+      const netlist = buildNetlist(setWiperPct(board, pot.blockId, pct))
+      const result = await sim.simulate(netlist, {
+        kind: 'tran',
+        ...tranPlanFor(netlist),
+      })
+      const wf = result.waveforms
+      if (!wf) return null
+      const swing = (s: readonly number[]) => Math.max(...s) - Math.min(...s)
+      const series = Object.values(wf.nodeVoltages).reduce((a, b) =>
+        swing(b) > swing(a) ? b : a,
+      )
+      expect(swing(series)).toBeGreaterThan(1) // 発振している (0V↔3V)
+      return measureSeries(wf.time, series).freq
+    }
+
+    // 抵抗が小さいほど半周期 0.7·R·C が短く、周波数が上がる
+    const fast = await freqAt(15)
+    const slow = await freqAt(100)
+    expect(fast, '15% で発振周波数が取れる').not.toBeNull()
+    expect(slow, '100% で発振周波数が取れる').not.toBeNull()
+    expect(fast!).toBeGreaterThan(slow!)
+    // 可聴域より遅いので、再生は固定 100 倍速 → 音程比 = 周波数比
+    expect(audioSpeedup(fast!)).toBe(audioSpeedup(slow!))
+    expect(fast! / slow!).toBeGreaterThan(1.3)
+  }, 120000)
 })

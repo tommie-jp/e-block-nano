@@ -264,3 +264,36 @@ describe('delay timer topology', () => {
     )
   })
 })
+
+/**
+ * 10 は 04 と同じ無安定マルチだが、片方のベース抵抗が可変抵抗になっている。
+ * 「つまみが周波数を決める」ことが回路の形として保たれているかを見る。
+ */
+describe('electronic organ topology', () => {
+  const netlist = () =>
+    buildNetlist(deserializeBoard(JSON.stringify(getSample('electronic-organ')!.data)))
+
+  test('04 と同じクロス結合を持ちつつ、ベース抵抗の 1 本が可変抵抗', () => {
+    const els = netlist().elements
+    const npns = els.filter((e) => e.device.kind === 'transistor-npn')
+    const caps = els.filter((e) => e.device.kind === 'capacitor')
+    expect(npns).toHaveLength(2)
+    expect(caps).toHaveLength(2)
+
+    const pots = els.filter((e) => e.device.kind === 'potentiometer')
+    expect(pots).toHaveLength(1)
+    // 可変抵抗は「電源 ↔ どちらかのベース」= 半周期 0.7·R·C を決める位置にある
+    const battery = els.find((e) => e.device.kind === 'battery')!
+    const ends = new Set(Object.values(pots[0].pinNodes))
+    expect(ends.has(battery.pinNodes.plus)).toBe(true)
+    expect(npns.some((q) => ends.has(q.pinNodes.base))).toBe(true)
+  })
+
+  test('盤面にワイパ位置が保存されている (既定 50%)', () => {
+    const board = deserializeBoard(
+      JSON.stringify(getSample('electronic-organ')!.data),
+    )
+    const pot = board.placements.find((p) => p.partId === 'potentiometer-100k')!
+    expect(pot.state?.wiperPct).toBe(50)
+  })
+})

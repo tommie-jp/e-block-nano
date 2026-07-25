@@ -1,0 +1,466 @@
+{
+  "version": 1,
+  "rows": 8,
+  "cols": 12,
+  "placements": [
+    {
+      "partId": "battery-3v",
+      "cell": {
+        "row": 5,
+        "col": 0
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 4,
+        "col": 0
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 3,
+        "col": 0
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 2,
+        "col": 0
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 1,
+        "col": 0
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-l",
+      "cell": {
+        "row": 0,
+        "col": 0
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 0,
+        "col": 1
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-t",
+      "cell": {
+        "row": 0,
+        "col": 2
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 0,
+        "col": 3
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-t",
+      "cell": {
+        "row": 0,
+        "col": 4
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 0,
+        "col": 5
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 0,
+        "col": 6
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 0,
+        "col": 7
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 0,
+        "col": 8
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-t",
+      "cell": {
+        "row": 0,
+        "col": 9
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-l",
+      "cell": {
+        "row": 0,
+        "col": 10
+      },
+      "orientation": 180
+    },
+    {
+      "partId": "resistor-1k",
+      "cell": {
+        "row": 1,
+        "col": 2
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "potentiometer-100k",
+      "cell": {
+        "row": 1,
+        "col": 4
+      },
+      "orientation": 0,
+      "state": {
+        "wiperPct": 50
+      }
+    },
+    {
+      "partId": "resistor-1k",
+      "cell": {
+        "row": 1,
+        "col": 9
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "resistor-33k",
+      "cell": {
+        "row": 1,
+        "col": 10
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "transistor-npn",
+      "cell": {
+        "row": 5,
+        "col": 2
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "transistor-npn",
+      "cell": {
+        "row": 5,
+        "col": 9
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-l",
+      "cell": {
+        "row": 6,
+        "col": 0
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 6,
+        "col": 1
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-t",
+      "cell": {
+        "row": 6,
+        "col": 2
+      },
+      "orientation": 270
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 6,
+        "col": 3
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 6,
+        "col": 4
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 6,
+        "col": 5
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 6,
+        "col": 6
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 6,
+        "col": 7
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 6,
+        "col": 8
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-l",
+      "cell": {
+        "row": 6,
+        "col": 9
+      },
+      "orientation": 270
+    },
+    {
+      "partId": "wire-t",
+      "cell": {
+        "row": 2,
+        "col": 2
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 3,
+        "col": 2
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 4,
+        "col": 2
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-t",
+      "cell": {
+        "row": 5,
+        "col": 3
+      },
+      "orientation": 270
+    },
+    {
+      "partId": "wire-l",
+      "cell": {
+        "row": 5,
+        "col": 4
+      },
+      "orientation": 270
+    },
+    {
+      "partId": "wire-t",
+      "cell": {
+        "row": 4,
+        "col": 4
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-cross",
+      "cell": {
+        "row": 3,
+        "col": 4
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-cross",
+      "cell": {
+        "row": 2,
+        "col": 4
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-cross",
+      "cell": {
+        "row": 2,
+        "col": 9
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-t",
+      "cell": {
+        "row": 3,
+        "col": 9
+      },
+      "orientation": 180
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 4,
+        "col": 9
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-t",
+      "cell": {
+        "row": 5,
+        "col": 10
+      },
+      "orientation": 270
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 4,
+        "col": 10
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 3,
+        "col": 10
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 2,
+        "col": 3
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "capacitor-10u",
+      "cell": {
+        "row": 2,
+        "col": 5
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 2,
+        "col": 6
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 2,
+        "col": 7
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 2,
+        "col": 8
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-t",
+      "cell": {
+        "row": 2,
+        "col": 10
+      },
+      "orientation": 180
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 3,
+        "col": 8
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "capacitor-10u",
+      "cell": {
+        "row": 3,
+        "col": 7
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 3,
+        "col": 6
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-l",
+      "cell": {
+        "row": 3,
+        "col": 5
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-l",
+      "cell": {
+        "row": 4,
+        "col": 5
+      },
+      "orientation": 270
+    }
+  ]
+}
