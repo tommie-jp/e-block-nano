@@ -1,4 +1,6 @@
 import type { Element, Netlist } from '../../netlist/build'
+import type { SourceWave } from '../../parts/types'
+import { wiperOhms } from '../../parts/types'
 
 /**
  * Netlist → SPICE netlist の変換器 (純関数)。唯一のエンジンである
@@ -12,6 +14,8 @@ import type { Element, Netlist } from '../../netlist/build'
  *   (0V 電源=電流計。`i(vm<k>)` で素子電流を直接測る)
  * - スイッチ → 抵抗置換。閉=1mΩ / 開=1GΩ(省略すると浮きノードで特異行列になる)
  * - コンデンサ → `C<k> a b <farads>`(.op では開放。点灯判定には影響しない)
+ * - 可変抵抗 → 抵抗置換。実効値 = 全抵抗 × ワイパ位置(`wiperOhms`)。実行中も alter で回せる
+ * - 信号源 → `V<k> + - SIN(…)` / `PULSE(…)`。電流は `i(v<k>)` で測れる
  */
 
 /** 赤 LED の簡易ダイオードモデル (Vf≈1.9V @ 1mA)。素振りで確認 */
@@ -134,6 +138,15 @@ export const toSpice = (
 
 type Seq = { V: number; R: number; D: number; C: number; Q: number }
 
+/**
+ * 波形を SPICE の独立電圧源カードにする。
+ * PULSE の tr/tf は 0 = ngspice が tstep を使う (立ち上がり時間は問わない用途)。
+ */
+const waveCard = (w: SourceWave): string =>
+  w.kind === 'sin'
+    ? `SIN(${w.offsetVolts} ${w.amplitudeVolts} ${w.hertz})`
+    : `PULSE(${w.lowVolts} ${w.highVolts} ${w.delaySeconds} 0 0 ${w.widthSeconds} ${w.periodSeconds})`
+
 /** 1 素子を SPICE 行に足し、電流プローブ・alter 用デバイス参照を登録する */
 const emitElement = (
   e: Element,
@@ -185,6 +198,22 @@ const emitElement = (
       lines.push(`D${dk} ${node('anode')} ${mid} ${model}`)
       lines.push(`${meter} ${mid} ${node('cathode')} DC 0`)
       probes[e.blockId] = `i(${meter.toLowerCase()})`
+      return
+    }
+    case 'potentiometer': {
+      const ref = `R${++seq.R}`
+      const ohms = wiperOhms(d.maxOhms, e.state?.wiperPct)
+      lines.push(`${ref} ${node('a')} ${node('b')} ${ohms}`)
+      deviceRefs[e.blockId] = ref.toLowerCase()
+      probes[e.blockId] = `@${ref.toLowerCase()}[i]`
+      return
+    }
+    case 'ac-source': {
+      const ref = `V${++seq.V}`
+      lines.push(`${ref} ${node('plus')} ${node('minus')} ${waveCard(d.wave)}`)
+      probes[e.blockId] = `i(${ref.toLowerCase()})`
+      // deviceRefs には載せない: `alter v<k> = x` は DC 値の書き換えで、
+      // 波形源に対しては意味が違う (振幅・周波数は `@v<k>[sin]` の世界)
       return
     }
     case 'transistor-npn': {

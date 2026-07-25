@@ -4,9 +4,20 @@ import { buildNetlist } from '../../netlist/build'
 import { deserializeBoard } from '../../persistence/boardFile'
 import fixture from '../../../fixtures/circuits/battery-switch-resistor-led.json'
 import { toSpice } from './serialize'
+import type { Element, Netlist } from '../../netlist/build'
 
 const fixtureNetlist = () =>
   buildNetlist(deserializeBoard(JSON.stringify(fixture)))
+
+/**
+ * 素子だけを直接与える合成 netlist。カタログ部品がまだ無い素子
+ * (可変抵抗・信号源) の変換を、盤面を組まずに検証するために使う。
+ * nets / nodeOfEdge は toSpice が見ないので空でよい。
+ */
+const syntheticNetlist = (
+  elements: readonly Element[],
+  groundNode = 'gnd',
+): Netlist => ({ nets: [], elements, nodeOfEdge: {}, groundNode })
 
 /** NPN を含む最小盤面 (電池は groundNode を作るために必要) */
 const npnNetlist = () => {
@@ -132,6 +143,75 @@ describe('toSpice', () => {
     expect(withoutNpn).toBe(
       toSpice(fixtureNetlist(), { ...tran, startup: 'zero-state' }).text,
     )
+  })
+
+  test('可変抵抗は wiperPct を掛けた抵抗として出す (alter の宛先つき)', () => {
+    const pot = (wiperPct?: number): Element => ({
+      blockId: 'vr1',
+      device: {
+        kind: 'potentiometer',
+        maxOhms: 100_000,
+        pins: { a: 'N', b: 'S' },
+      },
+      pinNodes: { a: 'n_top', b: 'gnd' },
+      ...(wiperPct === undefined ? {} : { state: { wiperPct } }),
+    })
+
+    const at30 = toSpice(syntheticNetlist([pot(30)]))
+    expect(at30.text).toMatch(/^R\d+ \S+ 0 30000$/m)
+    // 実行中に回せるよう抵抗として alter 宛先に載る
+    expect(at30.deviceRefs.vr1).toMatch(/^r\d+$/)
+    expect(at30.currentProbes.vr1).toMatch(/^@r\d+\[i\]$/)
+
+    // 省略時は中央 (50%)
+    expect(toSpice(syntheticNetlist([pot()])).text).toMatch(/^R\d+ \S+ 0 50000$/m)
+  })
+
+  test('信号源は SIN / PULSE の電圧源として出す', () => {
+    const source = (wave: Element['device']): Element => ({
+      blockId: 'src1',
+      device: wave,
+      pinNodes: { plus: 'n_in', minus: 'gnd' },
+    })
+
+    const sin = toSpice(
+      syntheticNetlist([
+        source({
+          kind: 'ac-source',
+          wave: {
+            kind: 'sin',
+            offsetVolts: 0,
+            amplitudeVolts: 0.05,
+            hertz: 1000,
+          },
+          pins: { plus: 'N', minus: 'S' },
+        }),
+      ]),
+    )
+    expect(sin.text).toMatch(/^V\d+ \S+ 0 SIN\(0 0\.05 1000\)$/m)
+    // 源の電流は測れる (電池と同じ i(v<k>))
+    expect(sin.currentProbes.src1).toMatch(/^i\(v\d+\)$/)
+    // DC 値を書き換える alter は波形源には意味が違うので宛先にしない
+    expect(sin.deviceRefs.src1).toBeUndefined()
+
+    const pulse = toSpice(
+      syntheticNetlist([
+        source({
+          kind: 'ac-source',
+          wave: {
+            kind: 'pulse',
+            lowVolts: 0,
+            highVolts: 3,
+            delaySeconds: 0.001,
+            widthSeconds: 0.002,
+            periodSeconds: 10,
+          },
+          pins: { plus: 'N', minus: 'S' },
+        }),
+      ]),
+    )
+    // PULSE(v1 v2 td tr tf pw per)。tr/tf=0 は ngspice が tstep を使う
+    expect(pulse.text).toMatch(/^V\d+ \S+ 0 PULSE\(0 3 0\.001 0 0 0\.002 10\)$/m)
   })
 
   test('throws when the circuit has no ground node', () => {
