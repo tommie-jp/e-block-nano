@@ -1,9 +1,9 @@
-import { exprKey, unitOf } from '../../core/scope/traceExpr'
+import { evalExpr, exprKey, unitOf } from '../../core/scope/traceExpr'
 import type { TraceExpr, Unit } from '../../core/scope/traceExpr'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import type { NodeProbe } from '../waveProbes'
 import type { MathNodes } from './mathTrace'
-import { CURRENT_COLORS } from './palette'
+import { CURRENT_COLORS, POWER_COLORS } from './palette'
 
 /**
  * 波形データから「描く系列」を作る純ロジック。値の作り方 (AC の DC 除去、
@@ -113,6 +113,32 @@ export const buildCurrentTraces = (
     constant: false,
     values: [...currents[id]],
   }))
+
+/**
+ * 電力トレース。式 (P=(V(a)−V(b))·I) を波形上で評価する。データが揃っていない
+ * 素子は黙って飛ばす (プローブを当てた直後や、電流が出ない素子)。
+ */
+export const buildPowerTraces = (
+  exprs: readonly TraceExpr[],
+  waveforms: Waveforms,
+  labels: Readonly<Record<string, string>> = {},
+): DrawTrace[] => {
+  const out: DrawTrace[] = []
+  for (const expr of exprs) {
+    if (expr.kind !== 'p') continue
+    const values = evalExpr(expr, waveforms)
+    if (!values) continue
+    out.push({
+      expr,
+      key: exprKey(expr),
+      label: `${labels[expr.block] ?? expr.block} 電力`,
+      color: POWER_COLORS[out.length % POWER_COLORS.length],
+      constant: false,
+      values,
+    })
+  }
+  return out
+}
 
 /**
  * 系列群のレンジ。0 を必ず含めて基準線を出し、フラットな退化ケースは

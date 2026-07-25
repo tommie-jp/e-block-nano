@@ -41,6 +41,37 @@ describe('pickProbe', () => {
     expect(pick).toEqual({ kind: 'current', blockId: board.placements[0].blockId })
   })
 
+  test('Alt over an element picks power instead of current (LTspice の Alt+クリック)', () => {
+    const board = resistorBoard()
+    const netlist = buildNetlist(board)
+
+    const pick = pickProbe(board, netlist, cellCenter(2, 2), { alt: true })
+
+    expect(pick).toEqual({ kind: 'power', blockId: board.placements[0].blockId })
+  })
+
+  test('Alt on a contact still picks the node voltage (配線の電流は測れない)', () => {
+    const board = resistorBoard()
+    const netlist = buildNetlist(board)
+    const contact = { x: 2 * CELL_SIZE + CELL_SIZE / 2, y: 2 * CELL_SIZE }
+
+    expect(pickProbe(board, netlist, contact, { alt: true })).toEqual({
+      kind: 'node',
+      nodeId: netlist.elements[0].pinNodes.a,
+      edge: 'H:2,2',
+    })
+  })
+
+  test('Alt on a three-terminal element has no single power reading', () => {
+    const board = placeBlock(createBoard(6, 8), 'transistor-npn', { row: 2, col: 2 })
+    const netlist = buildNetlist(board)
+
+    expect(pickProbe(board, netlist, cellCenter(2, 2), { alt: true })).toEqual({
+      kind: 'current',
+      blockId: board.placements[0].blockId,
+    })
+  })
+
   test('a contact wins over the device cell it sits on', () => {
     // 素子セルの内側でも、接点のすぐ近く (半径内) なら電圧プローブ
     const board = resistorBoard()

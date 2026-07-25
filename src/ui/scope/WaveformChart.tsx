@@ -5,6 +5,7 @@ import { measureSeries } from '../../core/simulation/spice/measure'
 import type { NodeProbe } from '../waveProbes'
 import { dominantOscillation, viewWindow } from '../waveProbes'
 import { exprKey } from '../../core/scope/traceExpr'
+import type { TraceExpr } from '../../core/scope/traceExpr'
 import { Cursors } from './Cursors'
 import type { CursorId } from './Cursors'
 import { fmtHz, fmtT, fmtV } from './format'
@@ -26,7 +27,13 @@ import { ScopeLegend } from './ScopeLegend'
 import { ScopePane } from './ScopePane'
 import { ScopeToolbar } from './ScopeToolbar'
 import { sweepHeadTime } from './sweep'
-import { buildCurrentTraces, buildVoltageTraces, dcOffsets, rangeOf } from './traceSeries'
+import {
+  buildCurrentTraces,
+  buildPowerTraces,
+  buildVoltageTraces,
+  dcOffsets,
+  rangeOf,
+} from './traceSeries'
 import { triggerTime } from './trigger'
 import { useScopeControls } from './useScopeControls'
 import { useSweep } from './useSweep'
@@ -59,10 +66,12 @@ interface WaveformChartProps {
    * 破線、段組みは 1 レーンずつ)。ライブ(LiveScopePanel)専用。
    */
   currents?: Readonly<Record<string, readonly number[]>>
-  /** blockId → 電流トレースの表示名 */
+  /** 描く電力の式 (Alt+クリックで当てたもの)。評価はここで行う */
+  powerExprs?: readonly TraceExpr[]
+  /** blockId → 電流/電力トレースの表示名 */
   currentLabels?: Readonly<Record<string, string>>
-  /** 電流の凡例クリックでプローブを外す (渡さなければ凡例は表示のみ) */
-  onToggleCurrent?: (blockId: string) => void
+  /** 凡例クリックでそのプローブを外す (渡さなければ凡例は表示のみ) */
+  onRemoveTrace?: (expr: TraceExpr) => void
   /** ボードで選択中の素子。電流トレースを太線＋他を薄くして強調 */
   selectedBlockId?: string | null
   /** このオシロ画面の見出し (例: "オシロ 1")。複数画面のときに表示 */
@@ -84,8 +93,9 @@ export const WaveformChart = ({
   onSaveReference,
   onClearReference,
   currents,
+  powerExprs,
   currentLabels,
-  onToggleCurrent,
+  onRemoveTrace,
   selectedBlockId,
   title,
   canRemove = false,
@@ -160,9 +170,16 @@ export const WaveformChart = ({
     () => (currents ? buildCurrentTraces(currents, currentLabels) : []),
     [currents, currentLabels],
   )
+  const powerTraces = useMemo(
+    () =>
+      waveforms && powerExprs?.length
+        ? buildPowerTraces(powerExprs, waveforms, currentLabels)
+        : [],
+    [waveforms, powerExprs, currentLabels],
+  )
   const drawTraces = useMemo(
-    () => (hasData ? [...traces, ...currentTraces] : []),
-    [hasData, traces, currentTraces],
+    () => (hasData ? [...traces, ...currentTraces, ...powerTraces] : []),
+    [hasData, traces, currentTraces, powerTraces],
   )
 
   // --- ペイン (LTspice のプロットペイン)。X 軸は共通、Y 軸はペインごと ---
@@ -398,8 +415,8 @@ export const WaveformChart = ({
         probes={probes}
         hidden={hidden}
         onToggle={onToggle}
-        currentTraces={currentTraces}
-        onToggleCurrent={onToggleCurrent}
+        currentTraces={[...currentTraces, ...powerTraces]}
+        onRemoveTrace={onRemoveTrace}
         selectedBlockId={selectedBlockId}
       />
 

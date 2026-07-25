@@ -17,10 +17,9 @@ import { getSample, SAMPLE_CIRCUITS } from '../fixtures/circuits/samples'
 import { BoardView } from './BoardView'
 import { HeaderMenu } from './HeaderMenu'
 import { PartsPalette } from './PartsPalette'
-import { SimulatorPanel } from './SimulatorPanel'
-import type { LiveCurrents } from './useCircuitJsLive'
 import type { NodeProbe } from './waveProbes'
 import { WaveformPanel } from './WaveformPanel'
+import type { LiveCurrents } from './scope/liveBuffer'
 import { LiveScopePanel } from './scope/LiveScopePanel'
 import type { ProbePick } from './scope/probePick'
 import { toggleHidden, toggleTrace } from './scope/probeTraces'
@@ -115,10 +114,13 @@ export const App = (): ReactElement => {
     }
   }
 
-  // 接点 = 電圧トレースの表示トグル、素子 = 電流トレースの追加/削除
+  // 接点 = 電圧トレースの表示トグル、素子 = 電流 (Alt なら電力) の追加/削除
   const handleProbe = (pick: ProbePick): void => {
-    if (pick.kind === 'node') setHiddenNodes((h) => toggleHidden(h, pick.nodeId))
-    else setProbeTraces((t) => toggleTrace(t, { kind: 'current', blockId: pick.blockId }))
+    if (pick.kind === 'node') {
+      setHiddenNodes((h) => toggleHidden(h, pick.nodeId))
+      return
+    }
+    setProbeTraces((t) => toggleTrace(t, { kind: pick.kind, blockId: pick.blockId }))
   }
 
   const handleProbeDiff = (pair: { a: string; b: string }): void =>
@@ -271,7 +273,7 @@ export const App = (): ReactElement => {
             onBlockMove={editor.handleBlockMove}
             onBlockDoubleClick={editor.rotateBlockById}
             elementCurrents={
-              // CircuitJS ライブビュー表示中はライブ電流を優先し、
+              // ライブオシロ実行中は流れている電流を優先し、
               // それ以外は ngspice の動作点電流 (ON のときのみ)
               liveCurrents ??
               (ngspiceOn ? simResult?.elementCurrents : undefined)
@@ -343,11 +345,6 @@ export const App = (): ReactElement => {
             </ul>
           )}
           {editor.message && <p className="error">{editor.message}</p>}
-          <SimulatorPanel
-            netlist={netlist}
-            hasError={hasError}
-            onCurrents={setLiveCurrents}
-          />
         </div>
       </main>
       {/* オシロは複数枚に増えるので、ボード配置を潰さないようページ後半に全幅で置く */}
@@ -369,6 +366,7 @@ export const App = (): ReactElement => {
             setHiddenNodes((h) => toggleHidden(h, nodeId))
           }
           onToggleTrace={(t) => setProbeTraces((list) => toggleTrace(list, t))}
+          onLiveCurrents={setLiveCurrents}
         />
       </div>
     </div>

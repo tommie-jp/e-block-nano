@@ -10,11 +10,24 @@ import type { MathNodes } from './mathTrace'
  */
 export type ProbeTrace =
   | { readonly kind: 'current'; readonly blockId: string }
+  | { readonly kind: 'power'; readonly blockId: string }
   | { readonly kind: 'diff'; readonly a: string; readonly b: string }
 
 /** 同一トレース判定に使うキー。種別が違えば同じ id でも別物 */
-export const traceKey = (t: ProbeTrace): string =>
-  t.kind === 'current' ? `i:${t.blockId}` : `d:${t.a}-${t.b}`
+export const traceKey = (t: ProbeTrace): string => {
+  switch (t.kind) {
+    case 'current':
+      return `i:${t.blockId}`
+    case 'power':
+      return `p:${t.blockId}`
+    case 'diff':
+      return `d:${t.a}-${t.b}`
+  }
+}
+
+/** 電力プローブのある素子 (blockId) */
+export const probedPowers = (list: readonly ProbeTrace[]): string[] =>
+  list.filter((t) => t.kind === 'power').map((t) => t.blockId)
 
 /**
  * トレースの追加/削除 (immutable)。同じキーが既にあれば外す。

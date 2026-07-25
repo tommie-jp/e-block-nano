@@ -7,7 +7,9 @@ import type { ScopeStream } from '../../core/simulation/streamPort'
 import { createScopeStream } from '../../io/scopeStreamEngine'
 import { selectProbes } from '../waveProbes'
 import { createLiveBuffer } from './liveBuffer'
-import { diffNodes, probedCurrents } from './probeTraces'
+import type { LiveCurrents } from './liveBuffer'
+import { powerExpr } from '../../core/scope/elementNodes'
+import { diffNodes, probedCurrents, probedPowers } from './probeTraces'
 import type { ProbeTrace } from './probeTraces'
 import { WaveformChart } from './WaveformChart'
 
@@ -29,6 +31,8 @@ const CAPACITY = 200_000 // リングバッファ容量(有界メモリ)
 const TIMEBASES = [0.5, 1, 2, 4]
 const SW_CLOSED_OHMS = 0.001 // スイッチ閉(serialize.ts と一致)
 const SW_OPEN_OHMS = 1e9 // スイッチ開
+// 描画は 60fps だが、ボード上の電流表示は目で追える程度に間引く
+const BOARD_CURRENTS_INTERVAL_MS = 100
 // 既定値を毎レンダー作らない (子の memo 依存が無駄に変わるため)
 const NO_HIDDEN: ReadonlySet<string> = new Set()
 const NO_TRACES: readonly ProbeTrace[] = []
@@ -54,6 +58,11 @@ interface LiveScopePanelProps {
   hidden?: ReadonlySet<string>
   onToggleHidden?: (nodeId: string) => void
   onToggleTrace?: (trace: ProbeTrace) => void
+  /**
+   * 走っている素子電流の瞬時値 (blockId → A)。ボード上のブロックに
+   * 「いま流れている電流」を出すために親へ流す。停止中・未起動は null。
+   */
+  onLiveCurrents?: (currents: LiveCurrents | null) => void
 }
 
 export const LiveScopePanel = ({
@@ -64,6 +73,7 @@ export const LiveScopePanel = ({
   hidden = NO_HIDDEN,
   onToggleHidden,
   onToggleTrace,
+  onLiveCurrents,
 }: LiveScopePanelProps): ReactElement => {
   const [running, setRunning] = useState(false)
   const [waveforms, setWaveforms] = useState<Waveforms | null>(null)
@@ -73,6 +83,10 @@ export const LiveScopePanel = ({
   const bufRef = useRef(createLiveBuffer(CAPACITY))
   const streamRef = useRef<ScopeStream | null>(null)
   const rafRef = useRef(0)
+  // コールバックの同一性変化で tick / effect が再走しないよう ref 経由で持つ
+  const onLiveCurrentsRef = useRef(onLiveCurrents)
+  onLiveCurrentsRef.current = onLiveCurrents
+  const lastCurrentsEmitRef = useRef(0)
 
   const canRun = netlist.groundNode !== null
 
@@ -97,6 +111,7 @@ export const LiveScopePanel = ({
     streamRef.current = null
     cancelAnimationFrame(rafRef.current)
     setRunning(false)
+    onLiveCurrentsRef.current?.(null)
   }
 
   const start = (): void => {
@@ -121,6 +136,12 @@ export const LiveScopePanel = ({
             }
           : w,
       )
+      // ボード上の電流表示へ最新 1 点を流す (描画より粗い間隔で十分)
+      const now = performance.now()
+      if (now - lastCurrentsEmitRef.current >= BOARD_CURRENTS_INTERVAL_MS) {
+        lastCurrentsEmitRef.current = now
+        onLiveCurrentsRef.current?.(bufRef.current.latestCurrents())
+      }
       rafRef.current = requestAnimationFrame(tick)
     }
     rafRef.current = requestAnimationFrame(tick)
@@ -131,6 +152,7 @@ export const LiveScopePanel = ({
     () => () => {
       streamRef.current?.stop()
       cancelAnimationFrame(rafRef.current)
+      onLiveCurrentsRef.current?.(null)
     },
     [],
   )
@@ -154,6 +176,14 @@ export const LiveScopePanel = ({
   const currents = useMemo(
     () => probedCurrents(traces, waveforms?.elementCurrents ?? {}),
     [traces, waveforms],
+  )
+  // 電力 (Alt+クリック) は式にして渡し、評価はオシロ側に任せる
+  const powerExprs = useMemo(
+    () =>
+      probedPowers(traces)
+        .map((blockId) => powerExpr(netlist, blockId))
+        .filter((e) => e !== null),
+    [traces, netlist],
   )
 
   const resistors = netlist.elements.filter((e) => e.device.kind === 'resistor')
@@ -243,8 +273,14 @@ export const LiveScopePanel = ({
         status={status}
         mathNodes={mathNodes}
         currents={currents}
+        powerExprs={powerExprs}
         currentLabels={deviceLabels}
-        onToggleCurrent={(blockId) => onToggleTrace?.({ kind: 'current', blockId })}
+        onRemoveTrace={(expr) => {
+          if (expr.kind === 'i') onToggleTrace?.({ kind: 'current', blockId: expr.block })
+          else if (expr.kind === 'p') onToggleTrace?.({ kind: 'power', blockId: expr.block })
+          else if (expr.kind === 'vdiff')
+            onToggleTrace?.({ kind: 'diff', a: expr.a, b: expr.b })
+        }}
         selectedBlockId={selectedBlockId}
         title={title}
       />

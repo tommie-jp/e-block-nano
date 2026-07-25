@@ -15,3 +15,10 @@ export const fmtI = (a: number): string => {
   if (abs >= 1e-6) return `${(a * 1e6).toFixed(1)} µA`
   return `${(a * 1e9).toFixed(0)} nA`
 }
+
+export const fmtW = (w: number): string => {
+  const abs = Math.abs(w)
+  if (abs >= 1e-3) return `${(w * 1e3).toFixed(2)} mW`
+  if (abs >= 1e-6) return `${(w * 1e6).toFixed(1)} µW`
+  return `${(w * 1e9).toFixed(0)} nW`
+}

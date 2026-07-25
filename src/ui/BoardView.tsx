@@ -102,19 +102,19 @@ export const BoardView = ({
 
   /** プローブモードの当たり判定。netlist が無ければ当たらない */
   const pickAt = useCallback(
-    (pt: { x: number; y: number }): ProbePick | null =>
-      netlist ? pickProbe(board, netlist, pt) : null,
+    (pt: { x: number; y: number }, alt = false): ProbePick | null =>
+      netlist ? pickProbe(board, netlist, pt, { alt }) : null,
     [board, netlist],
   )
 
   const handleProbeDown = (e: PointerEvent): void => {
     const pt = toSvgPoint(e)
     svgRef.current?.setPointerCapture(e.pointerId)
-    setProbeFrom(pickAt(pt))
+    setProbeFrom(pickAt(pt, e.altKey))
   }
 
   const handleProbeUp = (e: PointerEvent): void => {
-    const pick = pickAt(toSvgPoint(e))
+    const pick = pickAt(toSvgPoint(e), e.altKey)
     // 接点 → 別接点のドラッグなら差動、それ以外は当てた 1 点のトグル
     const pair = diffPick(probeFrom, pick)
     if (pair) onProbeDiff?.(pair)
@@ -145,7 +145,7 @@ export const BoardView = ({
 
   const handlePointerMove = (e: PointerEvent): void => {
     if (probing) {
-      setHoverPick(pickAt(toSvgPoint(e)))
+      setHoverPick(pickAt(toSvgPoint(e), e.altKey))
       return
     }
     if (!drag) return
@@ -188,7 +188,7 @@ export const BoardView = ({
   const hoverContact = hoverPick?.kind === 'node' ? probePoint(hoverPick.edge) : null
   const fromContact = probeFrom?.kind === 'node' ? probePoint(probeFrom.edge) : null
   const hoverCell =
-    hoverPick?.kind === 'current'
+    hoverPick?.kind === 'current' || hoverPick?.kind === 'power'
       ? board.placements.find((p) => p.blockId === hoverPick.blockId)?.cell
       : undefined
   const draggingDiff =
@@ -309,7 +309,7 @@ export const BoardView = ({
                 rx={5}
               />
               <text className="probe-hit-label" x={CELL_SIZE - 16} y={CELL_SIZE - 8}>
-                I
+                {hoverPick?.kind === 'power' ? 'P' : 'I'}
               </text>
             </g>
           )}
