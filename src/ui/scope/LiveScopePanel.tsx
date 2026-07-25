@@ -6,7 +6,6 @@ import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import type { ScopeStream } from '../../core/simulation/streamPort'
 import { createScopeStream } from '../../io/scopeStreamEngine'
 import { selectProbes } from '../waveProbes'
-import { CurrentTrace } from './CurrentTrace'
 import { createLiveBuffer } from './liveBuffer'
 import { selectedMathNodes } from './mathTrace'
 import { WaveformChart } from './WaveformChart'
@@ -237,20 +236,11 @@ export const LiveScopePanel = ({
         onToggle={onToggle}
         status={status}
         mathNodes={mathNodes}
+        currents={showCurrent ? waveforms?.elementCurrents : undefined}
+        currentLabels={deviceLabels}
+        selectedBlockId={selectedBlockId}
         title={title}
       />
-
-      {showCurrent && (
-        <div>
-          <div style={{ fontSize: 12, opacity: 0.75, margin: '2px 0' }}>電流 (mA)</div>
-          <CurrentTrace
-            time={waveforms?.time ?? []}
-            currents={waveforms?.elementCurrents ?? {}}
-            labels={deviceLabels}
-            selectedBlockId={selectedBlockId}
-          />
-        </div>
-      )}
     </div>
   )
 }

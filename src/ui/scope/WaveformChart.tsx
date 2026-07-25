@@ -48,6 +48,15 @@ interface WaveformChartProps {
   reference?: Waveforms | null
   onSaveReference?: () => void
   onClearReference?: () => void
+  /**
+   * blockId → 電流系列[A]。渡すと同じ枠内に電流トレースを重ねる(overlay は右 mA 軸に
+   * 破線、段組みは 1 レーンずつ)。ライブ(LiveScopePanel)専用。
+   */
+  currents?: Readonly<Record<string, readonly number[]>>
+  /** blockId → 電流トレースの表示名 */
+  currentLabels?: Readonly<Record<string, string>>
+  /** ボードで選択中の素子。電流トレースを太線＋他を薄くして強調 */
+  selectedBlockId?: string | null
   /** このオシロ画面の見出し (例: "オシロ 1")。複数画面のときに表示 */
   title?: string
   /** ヘッダの × でこの画面を閉じられるか (最後の 1 枚は閉じさせない) */
@@ -61,6 +70,14 @@ const fmtHz = (f: number): string =>
   f >= 1000 ? `${(f / 1000).toFixed(2)} kHz` : `${f.toFixed(2)} Hz`
 const fmtV = (v: number): string =>
   Math.abs(v) >= 1 ? `${v.toFixed(2)} V` : `${(v * 1000).toFixed(0)} mV`
+const fmtI = (a: number): string => {
+  const abs = Math.abs(a)
+  if (abs >= 1e-3) return `${(a * 1e3).toFixed(2)} mA`
+  if (abs >= 1e-6) return `${(a * 1e6).toFixed(1)} µA`
+  return `${(a * 1e9).toFixed(0)} nA`
+}
+// 電流トレースの色(電圧の SERIES_COLORS と混同しないよう別セット＋破線で描く)
+const CURRENT_COLORS = ['#ffd54f', '#4dd0e1', '#f06292', '#aed581', '#ff8a65']
 
 const range = (values: readonly number[]): { lo: number; hi: number } => {
   let lo = Infinity
@@ -90,6 +107,9 @@ export const WaveformChart = ({
   reference,
   onSaveReference,
   onClearReference,
+  currents,
+  currentLabels,
+  selectedBlockId,
   title,
   canRemove = false,
   onRemove,
@@ -207,6 +227,32 @@ export const WaveformChart = ({
     return list
   }, [waveforms, visible, mathValues, mathNodes, ac, dc])
 
+  // 電流トレース(渡されたときのみ)。overlay は右 mA 軸に破線、段組みは 1 レーンずつ
+  const currentTraces = useMemo<Trace[]>(() => {
+    if (!currents) return []
+    return Object.keys(currents).map((id, i) => ({
+      key: `i:${id}`,
+      label: currentLabels?.[id] ?? id,
+      color: CURRENT_COLORS[i % CURRENT_COLORS.length],
+      constant: false,
+      values: [...currents[id]],
+    }))
+  }, [currents, currentLabels])
+  const hasCurrents = currentTraces.length > 0
+  // 電流の右 y 軸レンジ(0 を必ず含める)
+  const iRange = useMemo(() => {
+    let lo = 0
+    let hi = 0
+    for (const t of currentTraces)
+      for (const v of t.values) {
+        if (v < lo) lo = v
+        if (v > hi) hi = v
+      }
+    return hi - lo < 1e-12 ? { min: lo - 1e-9, max: lo + 1e-9 } : { min: lo, max: hi }
+  }, [currentTraces])
+  // 段組みでは電圧＋電流を全部レーン化する
+  const allTraces = useMemo(() => [...traces, ...currentTraces], [traces, currentTraces])
+
   // --- カーソル (時間ビュー・重ね表示時のみ) ---
   const enableCursors = (): void => {
     const span = win.end - win.start
@@ -281,6 +327,11 @@ export const WaveformChart = ({
     const mid = (lo + hi) / 2
     const amp = Math.max(1e-9, (hi - lo) / 2)
     return (v: number): number => lane.cy - ((v - mid) / amp) * lane.half * gain
+  }
+  // 電流→SVG y (overlay の右 mA 軸)。プロット領域に iRange をマップ
+  const yI = (a: number): number => {
+    const { top, bottom } = scales.plot
+    return bottom - ((a - iRange.min) / (iRange.max - iRange.min)) * (bottom - top)
   }
 
   const stacked = view === 'time' && mode === 'stacked'
@@ -363,9 +414,9 @@ export const WaveformChart = ({
 
         {view === 'time' &&
           hasData &&
-          traces.map((t, i) => {
+          (stacked ? allTraces : traces).map((t, i) => {
             if (stacked) {
-              const lane = laneBand(i, traces.length, scales.plot)
+              const lane = laneBand(i, allTraces.length, scales.plot)
               const yFn = stackedY(lane, t.values)
               const head = sweeping ? headPoint(t.values, yFn) : null
               return (
@@ -452,6 +503,47 @@ export const WaveformChart = ({
               </g>
             )
           })}
+
+        {/* overlay 時: 電流を右 mA 軸に破線で重ねる */}
+        {view === 'time' &&
+          !stacked &&
+          hasCurrents &&
+          currentTraces.map((t) => {
+            const sel = t.key === `i:${selectedBlockId}`
+            return (
+              <polyline
+                key={t.key}
+                className="wave-line"
+                stroke={t.color}
+                strokeDasharray="5 3"
+                strokeWidth={sel ? 2.5 : 1.2}
+                opacity={selectedBlockId && !sel ? 0.3 : 1}
+                points={sweeping ? revealedFor(t.values, yI) : pointsFor(time, t.values, yI)}
+              />
+            )
+          })}
+        {view === 'time' && !stacked && hasCurrents && (
+          <>
+            <text
+              x={scales.plot.right - 2}
+              y={scales.plot.top + 10}
+              textAnchor="end"
+              className="lane-label"
+              fill={CURRENT_COLORS[0]}
+            >
+              {fmtI(iRange.max)}
+            </text>
+            <text
+              x={scales.plot.right - 2}
+              y={scales.plot.bottom - 2}
+              textAnchor="end"
+              className="lane-label"
+              fill={CURRENT_COLORS[0]}
+            >
+              {fmtI(iRange.min)}
+            </text>
+          </>
+        )}
 
         {view === 'xy' && hasData && xX && xY && (
           <XYPlot
@@ -692,6 +784,31 @@ export const WaveformChart = ({
                 {p.label}
                 {p.constant ? ' (一定)' : ''}
               </button>
+            </li>
+          )
+        })}
+        {currentTraces.map((t) => {
+          const id = t.key.slice(2) // 'i:blockId' → blockId
+          const last = t.values.length > 0 ? t.values[t.values.length - 1] : 0
+          const sel = id === selectedBlockId
+          return (
+            <li key={t.key}>
+              <span
+                className="wave-legend-item"
+                style={{
+                  opacity: selectedBlockId && !sel ? 0.5 : 1,
+                  fontWeight: sel ? 700 : 400,
+                }}
+              >
+                <span
+                  className="wave-swatch"
+                  style={{
+                    background: `repeating-linear-gradient(90deg, ${t.color} 0 4px, transparent 4px 7px)`,
+                  }}
+                />
+                {t.label} {fmtI(last)}
+                {sel ? ' ◀ 選択' : ''}
+              </span>
             </li>
           )
         })}
