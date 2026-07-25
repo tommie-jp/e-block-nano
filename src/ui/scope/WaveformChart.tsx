@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent, ReactElement } from 'react'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import { measureSeries } from '../../core/simulation/spice/measure'
@@ -30,6 +30,8 @@ import { buildDrawTraces, dcOffsets, rangeOf } from './traceSeries'
 import { triggerTime } from './trigger'
 import { useScopeControls } from './useScopeControls'
 import { useSweep } from './useSweep'
+import { fitsWindow, popZoom, pushZoom, rectToView } from './zoom'
+import type { ZoomView } from './zoom'
 import { XYPlot } from './XYPlot'
 
 /**
@@ -86,6 +88,11 @@ export const WaveformChart = ({
   const c = useScopeControls()
   const hasData = waveforms != null && probes.length > 0
 
+  // --- ズーム (矩形ドラッグ / Zoom Back / 全体表示) ---
+  const [zoom, setZoom] = useState<ZoomView | null>(null)
+  const [zoomStack, setZoomStack] = useState<readonly ZoomView[]>([])
+  const [drag, setDrag] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null)
+
   // 回路のノード集合にレイアウトを追従させる (新しいノードは自動で 1 本増える)
   const nodeKey = probes.map((p) => p.nodeId).join('|')
   useEffect(() => {
@@ -125,7 +132,7 @@ export const WaveformChart = ({
   const fftId = c.fftSel && visibleIds.includes(c.fftSel) ? c.fftSel : preferredIds[0] ?? ''
 
   // トリガ: 支配ノードの中点を最初に横切る時刻へ窓の左端を合わせる
-  const win = useMemo(() => {
+  const autoWin = useMemo(() => {
     if (!hasData) return DEFAULT_WINDOW
     const base = viewWindow(waveforms, probes)
     if (!c.trigOn) return base
@@ -141,6 +148,14 @@ export const WaveformChart = ({
     return { start: t, end }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasData, waveforms, probes, c.trigOn, c.trigSlope])
+
+  // ズーム中はその窓を使う。データが入れ替わって窓が外れたら自動へ戻す
+  const dataWin = {
+    start: waveforms?.time[0] ?? 0,
+    end: waveforms?.time.at(-1) ?? 0,
+  }
+  const zoomUsable = zoom !== null && (!hasData || fitsWindow(zoom.win, dataWin))
+  const win = zoomUsable && zoom ? zoom.win : autoWin
 
   // AC カップリング: 各系列から DC (平均) を引いて描く
   const dc = useMemo(
@@ -185,12 +200,49 @@ export const WaveformChart = ({
       y: ((e.clientY - rect.top) / rect.height) * height,
     }
   }
+  const startZoomDrag = (e: PointerEvent): void => {
+    if (c.view !== 'time' || !hasData) return
+    const pt = toSvg(e)
+    svgRef.current?.setPointerCapture(e.pointerId)
+    setDrag({ from: pt, to: pt })
+  }
+  const endZoomDrag = (e: PointerEvent): void => {
+    c.setDragging(null)
+    if (!drag) return
+    const view = rectToView(drag.from, toSvg(e), scales)
+    setDrag(null)
+    if (!view) return
+    setZoomStack((s) => pushZoom(s, view))
+    setZoom(view)
+    // 囲んだ縦幅をそのペインの手動 Y レンジにする (LTspice と同じ挙動)
+    const paneId = panes[0]?.pane.id
+    if (paneId) onLayout((l) => setPaneYRange(l, paneId, view.yRange))
+  }
+  const zoomBack = (): void => {
+    const back = popZoom(zoomStack)
+    setZoomStack(back.stack)
+    setZoom(back.view)
+    const paneId = panes[0]?.pane.id
+    if (paneId) onLayout((l) => setPaneYRange(l, paneId, back.view?.yRange ?? null))
+  }
+  const zoomFit = (): void => {
+    setZoomStack([])
+    setZoom(null)
+    onLayout((l) =>
+      l.panes.reduce((acc, p) => setPaneYRange(acc, p.id, null), l),
+    )
+  }
+
   const grab = (id: CursorId, e: PointerEvent): void => {
     e.stopPropagation()
     svgRef.current?.setPointerCapture(e.pointerId)
     c.setDragging(id)
   }
   const onMove = (e: PointerEvent): void => {
+    if (drag) {
+      setDrag({ ...drag, to: toSvg(e) })
+      return
+    }
     if (!c.dragging) return
     const { x, y } = toSvg(e)
     const t = scales.tFromX(x)
@@ -320,8 +372,19 @@ export const WaveformChart = ({
               onLayout((l) => setPaneYRange(l, p.pane.id, range))
             }
             svgRef={i === 0 ? svgRef : undefined}
+            onPointerDown={i === 0 ? startZoomDrag : undefined}
             onPointerMove={i === 0 ? onMove : undefined}
-            onPointerUp={i === 0 ? () => c.setDragging(null) : undefined}
+            onPointerUp={i === 0 ? endZoomDrag : undefined}
+            zoomRect={
+              i === 0 && drag
+                ? {
+                    x: Math.min(drag.from.x, drag.to.x),
+                    y: Math.min(drag.from.y, drag.to.y),
+                    width: Math.abs(drag.to.x - drag.from.x),
+                    height: Math.abs(drag.to.y - drag.from.y),
+                  }
+                : null
+            }
             overlay={
               i === 0 ? (
                 <>
@@ -366,6 +429,9 @@ export const WaveformChart = ({
         hasData={hasData}
         cursorsUsable={cursorsUsable}
         onAddPane={() => onLayout(addPane)}
+        zoomed={zoom !== null}
+        onZoomBack={zoomBack}
+        onZoomFit={zoomFit}
         onToggleCursors={() =>
           c.cursorsOn ? c.disableCursors() : c.enableCursors(win, scales.yRange)
         }

@@ -7,27 +7,43 @@ const values = [0, 10, 20, 30, 40]
 
 describe('polylinePoints', () => {
   test('maps every sample through the x/y scales', () => {
-    expect(polylinePoints(time, values, 0, identity, identity, 100)).toBe(
+    expect(polylinePoints(time, values, 0, 4, identity, identity, 100)).toBe(
       '0,0 1,10 2,20 3,30 4,40',
     )
   })
 
   test('drops samples before the window start (left edge of the screen)', () => {
-    expect(polylinePoints(time, values, 2, identity, identity, 100)).toBe(
+    expect(polylinePoints(time, values, 2, 4, identity, identity, 100)).toBe(
       '2,20 3,30 4,40',
     )
   })
 
   test('thins out to at most maxPoints samples', () => {
     const many = Array.from({ length: 100 }, (_, i) => i)
-    const pts = polylinePoints(many, many, 0, identity, identity, 10).split(' ')
+    const pts = polylinePoints(many, many, 0, 99, identity, identity, 10).split(' ')
 
     expect(pts.length).toBeLessThanOrEqual(10)
     expect(pts[0]).toBe('0,0')
   })
 
   test('an empty series draws nothing', () => {
-    expect(polylinePoints([], [], 0, identity, identity, 10)).toBe('')
+    expect(polylinePoints([], [], 0, 1, identity, identity, 10)).toBe('')
+  })
+})
+
+describe('polylinePoints (ズーム時の解像度)', () => {
+  test('thins by the samples inside the window, not the whole series', () => {
+    // 1000 点のうち窓に入るのは 10 点 → 間引かずに 10 点そのまま出す
+    const many = Array.from({ length: 1000 }, (_, i) => i)
+    const pts = polylinePoints(many, many, 100, 109, identity, identity, 50)
+
+    expect(pts.split(' ').length).toBeGreaterThanOrEqual(10)
+  })
+
+  test('keeps one sample past the right edge so the line is not cut short', () => {
+    const pts = polylinePoints(time, values, 1, 2, identity, identity, 100)
+
+    expect(pts).toBe('1,10 2,20 3,30')
   })
 })
 

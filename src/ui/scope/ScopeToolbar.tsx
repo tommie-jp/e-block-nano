@@ -12,6 +12,10 @@ interface ScopeToolbarProps {
   onToggleCursors: () => void
   /** 空のペインを 1 枚足す (トレースはペイン見出しの札で移す) */
   onAddPane: () => void
+  /** ズーム中か (Zoom Back / 全体表示を出すかの判断) */
+  zoomed: boolean
+  onZoomBack: () => void
+  onZoomFit: () => void
   /** XY / FFT のソース候補 (表示中のノード) */
   visible: readonly NodeProbe[]
   xX: string
@@ -31,6 +35,9 @@ export const ScopeToolbar = ({
   cursorsUsable,
   onToggleCursors,
   onAddPane,
+  zoomed,
+  onZoomBack,
+  onZoomFit,
   visible,
   xX,
   xY,
@@ -102,6 +109,16 @@ export const ScopeToolbar = ({
           >
             ペイン追加
           </button>
+          {zoomed && (
+            <>
+              <button type="button" onClick={onZoomBack} title="1 段階ズームを戻す">
+                ズーム戻す
+              </button>
+              <button type="button" onClick={onZoomFit} title="自動レンジ (全体表示) に戻す">
+                全体
+              </button>
+            </>
+          )}
           <span className="gain-control">
             振幅
             <button

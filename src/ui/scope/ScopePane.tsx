@@ -41,8 +41,11 @@ interface ScopePaneProps {
   overlay?: ReactNode
   /** カーソル操作用 (この SVG 上でドラッグする先頭ペインだけ渡す) */
   svgRef?: RefObject<SVGSVGElement | null>
+  onPointerDown?: (e: PointerEvent) => void
   onPointerMove?: (e: PointerEvent) => void
-  onPointerUp?: () => void
+  onPointerUp?: (e: PointerEvent) => void
+  /** ズーム矩形 (ドラッグ中のみ)。SVG 座標 */
+  zoomRect?: { x: number; y: number; width: number; height: number } | null
 }
 
 export const ScopePane = ({
@@ -65,8 +68,10 @@ export const ScopePane = ({
   onSetYRange,
   overlay,
   svgRef,
+  onPointerDown,
   onPointerMove,
   onPointerUp,
+  zoomRect,
 }: ScopePaneProps): ReactElement => {
   const leftTraces = traces.filter((t) => unitOf(t.expr) === leftUnit)
   const rightTraces = rightUnit
@@ -145,6 +150,7 @@ export const ScopePane = ({
         className="waveform"
         viewBox={`0 0 600 ${height}`}
         role="img"
+        onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
@@ -161,6 +167,15 @@ export const ScopePane = ({
           reference={reference}
           selectedBlockId={selectedBlockId}
         />
+        {zoomRect && (
+          <rect
+            className="zoom-rect"
+            x={zoomRect.x}
+            y={zoomRect.y}
+            width={zoomRect.width}
+            height={zoomRect.height}
+          />
+        )}
         {overlay}
       </svg>
     </div>

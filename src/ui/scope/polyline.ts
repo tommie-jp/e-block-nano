@@ -10,20 +10,30 @@ export const MAX_POINTS = 1000
 
 type Scale = (v: number) => number
 
-/** 窓の左端より前を捨て、最大 maxPoints 点に間引いた points 文字列 */
+/**
+ * 窓 [winStart, winEnd] の中だけを、最大 maxPoints 点に間引いた points 文字列。
+ * 間引き率は**窓内の点数**で決める (窓の外まで数えると、深くズームしたときに
+ * 窓の中がスカスカになる)。
+ */
 export const polylinePoints = (
   time: readonly number[],
   values: readonly number[],
   winStart: number,
+  winEnd: number,
   x: Scale,
   y: Scale,
   maxPoints: number,
 ): string => {
+  const n = Math.min(time.length, values.length)
   let k = 0
-  while (k < time.length && time[k] < winStart) k++
-  const stride = Math.max(1, Math.ceil((time.length - k) / maxPoints))
+  while (k < n && time[k] < winStart) k++
+  let last = k
+  while (last < n && time[last] <= winEnd) last++
+  // 窓の右端をまたぐ 1 点は残す (線が窓の縁で途切れないように)
+  const end = Math.min(n, last + 1)
+  const stride = Math.max(1, Math.ceil((end - k) / maxPoints))
   const parts: string[] = []
-  for (let j = k; j < values.length; j += stride) parts.push(`${x(time[j])},${y(values[j])}`)
+  for (let j = k; j < end; j += stride) parts.push(`${x(time[j])},${y(values[j])}`)
   return parts.join(' ')
 }
 

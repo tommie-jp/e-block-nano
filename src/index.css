@@ -899,6 +899,16 @@ body {
   stroke-linejoin: round;
 }
 
+/* ズームの選択矩形 (LTspice のラバーバンド) */
+.zoom-rect {
+  fill: #4fc3f7;
+  fill-opacity: 0.12;
+  stroke: #4fc3f7;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+
 /* --- プローブモード (LTspice の回路図プローブ相当) --- */
 .board.probing {
   cursor: crosshair;

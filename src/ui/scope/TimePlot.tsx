@@ -53,7 +53,7 @@ export const TimePlot = ({
   const win = scales.win
 
   const points = (values: readonly number[], y: (v: number) => number): string =>
-    polylinePoints(time, values, win.start, scales.x, y, MAX_POINTS)
+    polylinePoints(time, values, win.start, win.end, scales.x, y, MAX_POINTS)
   const revealed = (values: readonly number[], y: (v: number) => number): string =>
     revealedPoints(time, values, win.start, tHead, scales.x, y, MAX_POINTS)
   const head = (values: readonly number[], y: (v: number) => number) =>
@@ -82,6 +82,7 @@ export const TimePlot = ({
                 reference.time,
                 reference.nodeVoltages[t.expr.node],
                 win.start,
+                win.end,
                 scales.x,
                 scales.y,
                 MAX_POINTS,

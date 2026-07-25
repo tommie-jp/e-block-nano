@@ -24,7 +24,8 @@ import { WaveformChart } from './WaveformChart'
 const STEP = 0.005 // .tran 最大刻み [s]
 const HORIZON = 60 // 1 本の .tran の上限 [s] (ngspice 内部 plot が伸びるので現実値に)
 const INTERVAL = 0.05 // breakpoint 間隔(制御点)[s]
-const WINDOW_SEC = 2 // 表示窓 [s]
+const WINDOW_SEC = 2 // 走行中の表示窓 [s]
+const HOLD_WINDOW_SEC = 1e9 // HOLD 中はリングバッファ全域を出す (実質無制限)
 const CAPACITY = 200_000 // リングバッファ容量(有界メモリ)
 const TIMEBASES = [0.5, 1, 2, 4]
 const SW_CLOSED_OHMS = 0.001 // スイッチ閉(serialize.ts と一致)
@@ -66,6 +67,9 @@ export const LiveScopePanel = ({
   onLiveCurrents,
 }: LiveScopePanelProps): ReactElement => {
   const [running, setRunning] = useState(false)
+  // HOLD: ストリームを止めて、溜まったバッファ全域を LTspice の波形ビューアの
+  // ように扱う (ズーム・カーソル・測定は止まった波形の上でやる)
+  const [held, setHeld] = useState(false)
   const [waveforms, setWaveforms] = useState<Waveforms | null>(null)
   const [timebase, setTimebase] = useState(1)
   const [swClosed, setSwClosed] = useState<Record<string, boolean>>({})
@@ -101,11 +105,34 @@ export const LiveScopePanel = ({
     streamRef.current = null
     cancelAnimationFrame(rafRef.current)
     setRunning(false)
+    setHeld(false)
     onLiveCurrentsRef.current?.(null)
+  }
+
+  /** 走行を止めて、溜めた波形全体を静止表示にする */
+  const hold = (): void => {
+    streamRef.current?.stop()
+    streamRef.current = null
+    cancelAnimationFrame(rafRef.current)
+    setRunning(false)
+    setHeld(true)
+    onLiveCurrentsRef.current?.(null)
+    const w = bufRef.current.toWindow(HOLD_WINDOW_SEC)
+    const t0 = w.time.length > 0 ? w.time[0] : 0
+    setWaveforms(
+      t0 > 0
+        ? {
+            time: w.time.map((t) => t - t0),
+            nodeVoltages: w.nodeVoltages,
+            elementCurrents: w.elementCurrents,
+          }
+        : w,
+    )
   }
 
   const start = (): void => {
     if (!canRun) return
+    setHeld(false)
     bufRef.current.clear()
     const stream = createScopeStream()
     streamRef.current = stream
@@ -176,9 +203,17 @@ export const LiveScopePanel = ({
         <button type="button" onClick={running ? stop : start} disabled={!canRun}>
           {running ? '■ STOP' : '● LIVE'}
         </button>
-        {running && (
+        <button
+          type="button"
+          onClick={hold}
+          disabled={!running}
+          title="走行を止めて、溜まった波形全体をズーム・測定できる状態にする"
+        >
+          ⏸ HOLD
+        </button>
+        {(running || held) && (
           <span style={{ fontVariantNumeric: 'tabular-nums', opacity: 0.9 }}>
-            t={(latest ?? 0).toFixed(2)}s
+            {held ? 'HOLD ' : ''}t={(latest ?? 0).toFixed(2)}s
           </span>
         )}
         <span style={{ opacity: 0.8 }}>掃引速度</span>
