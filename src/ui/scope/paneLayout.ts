@@ -12,7 +12,7 @@ import type { DrawTrace } from './traceSeries'
  */
 
 /** フラットな系列でも軸が潰れないよう開く幅。電圧は 1V、電流/電力は 1n */
-const FLAT_PAD: Record<Unit, number> = { V: 1, A: 1e-9, W: 1e-9 }
+const FLAT_PAD: Record<Unit, number> = { V: 1, A: 1e-9, W: 1e-9, x: 1 }
 
 /** ペイン 1 枚の SVG 高さ。増えるほど 1 枚を低くして全体が伸びすぎないように */
 export const paneHeight = (count: number): number =>

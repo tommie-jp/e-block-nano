@@ -8,6 +8,7 @@ import { createScopeStream } from '../../io/scopeStreamEngine'
 import { selectProbes } from '../waveProbes'
 import { createLiveBuffer } from './liveBuffer'
 import type { LiveCurrents } from './liveBuffer'
+import { terminalNodes } from '../../core/scope/elementNodes'
 import type { ScopeLayout } from './panes'
 import { WaveformChart } from './WaveformChart'
 
@@ -187,6 +188,15 @@ export const LiveScopePanel = ({
   }
 
   const probes = useMemo(() => (waveforms ? selectProbes(waveforms) : []), [waveforms])
+  // 式で使える素子 (両端が決まる 2 端子だけ)
+  const elementTerminals = useMemo(() => {
+    const m: Record<string, { a: string; b: string }> = {}
+    for (const e of netlist.elements) {
+      const t = terminalNodes(netlist, e.blockId)
+      if (t) m[e.blockId] = t
+    }
+    return m
+  }, [netlist])
 
   const resistors = netlist.elements.filter((e) => e.device.kind === 'resistor')
   const latest = bufRef.current.latestTime()
@@ -280,6 +290,7 @@ export const LiveScopePanel = ({
         layout={layout}
         onLayout={onLayout}
         deviceLabels={deviceLabels}
+        elementTerminals={elementTerminals}
         status={status}
         selectedBlockId={selectedBlockId}
         title={title}

@@ -1,4 +1,4 @@
-import { evalExpr, exprKey, unitOf } from '../../core/scope/traceExpr'
+import { evalExpr, exprKey, exprLabel, unitOf } from '../../core/scope/traceExpr'
 import type { TraceExpr, Unit } from '../../core/scope/traceExpr'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import type { NodeProbe } from '../waveProbes'
@@ -29,6 +29,7 @@ export const UNIT_DISPLAY: Record<Unit, { scale: number; label: string }> = {
   V: { scale: 1, label: 'V' },
   A: { scale: 1000, label: 'mA' },
   W: { scale: 1000, label: 'mW' },
+  x: { scale: 1, label: '—' },
 }
 
 export const meanOf = (values: readonly number[]): number =>
@@ -120,6 +121,19 @@ export const buildDrawTrace = (
         expr,
         key,
         label: `${device(expr.block)} 電力`,
+        color: trace.color,
+        constant: false,
+        values,
+      }
+    default:
+      // 式トレース (Add Trace で足したもの) は式そのものをラベルにする
+      return {
+        expr,
+        key,
+        label: exprLabel(expr, {
+          nodes: Object.fromEntries(probes.map((p) => [p.nodeId, p.label])),
+          blocks: deviceLabels,
+        }),
         color: trace.color,
         constant: false,
         values,

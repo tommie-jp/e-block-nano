@@ -48,7 +48,9 @@ export const ScopeLegend = ({
     {currentTraces.map((t) => {
       const id = t.expr.kind === 'i' || t.expr.kind === 'p' ? t.expr.block : ''
       const last = t.values.length > 0 ? t.values[t.values.length - 1] : 0
-      const fmt = unitOf(t.expr) === 'W' ? fmtW : fmtI
+      const unit = unitOf(t.expr)
+      const fmt =
+        unit === 'W' ? fmtW : unit === 'A' ? fmtI : (v: number) => v.toPrecision(3)
       const sel = id === selectedBlockId
       return (
         <li key={t.key}>

@@ -899,6 +899,41 @@ body {
   stroke-linejoin: round;
 }
 
+/* 式でトレースを足すダイアログ */
+.add-trace {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 1px solid #3a4a58;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.add-trace-row {
+  display: flex;
+  gap: 6px;
+}
+
+.add-trace-input {
+  flex: 1;
+  font-family: ui-monospace, monospace;
+}
+
+.add-trace-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.add-trace-hint {
+  color: #8fa3b3;
+}
+
+.add-trace-error {
+  color: #ff8a80;
+}
+
 /* ズームの選択矩形 (LTspice のラバーバンド) */
 .zoom-rect {
   fill: #4fc3f7;

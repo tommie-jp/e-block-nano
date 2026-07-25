@@ -12,6 +12,9 @@ interface ScopeToolbarProps {
   onToggleCursors: () => void
   /** 空のペインを 1 枚足す (トレースはペイン見出しの札で移す) */
   onAddPane: () => void
+  /** 式でトレースを足すダイアログの開閉 */
+  onAddTrace: () => void
+  addTraceOpen: boolean
   /** ズーム中か (Zoom Back / 全体表示を出すかの判断) */
   zoomed: boolean
   onZoomBack: () => void
@@ -35,6 +38,8 @@ export const ScopeToolbar = ({
   cursorsUsable,
   onToggleCursors,
   onAddPane,
+  onAddTrace,
+  addTraceOpen,
   zoomed,
   onZoomBack,
   onZoomFit,
@@ -108,6 +113,16 @@ export const ScopeToolbar = ({
             title="ペインを 1 枚増やす (トレースは見出しの札で移す)"
           >
             ペイン追加
+          </button>
+          <button
+            type="button"
+            className="toggle"
+            aria-pressed={addTraceOpen}
+            disabled={!hasData}
+            onClick={onAddTrace}
+            title="式でトレースを足す (V(N1)*I(blk-4) など)"
+          >
+            トレース追加
           </button>
           {zoomed && (
             <>

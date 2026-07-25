@@ -7,6 +7,7 @@ import type { Waveforms } from '../core/simulation/spice/mapResult'
 import type { NodeProbe } from './waveProbes'
 import { dominantOscillation, selectProbes } from './waveProbes'
 import { WaveformChart } from './scope/WaveformChart'
+import { terminalNodes } from '../core/scope/elementNodes'
 import { selectedMathNodes } from './scope/mathTrace'
 import { setSelectionDiff } from './scope/panes'
 import type { ScopeLayout } from './scope/panes'
@@ -74,6 +75,16 @@ export const WaveformPanel = ({
       list.map((s) => withLayout(s, (l) => setSelectionDiff(l, mathNodes))),
     )
   }, [mathNodes])
+
+  // 式で使える素子 (両端が決まる 2 端子だけ)
+  const elementTerminals = useMemo(() => {
+    const m: Record<string, { a: string; b: string }> = {}
+    for (const e of netlist.elements) {
+      const t = terminalNodes(netlist, e.blockId)
+      if (t) m[e.blockId] = t
+    }
+    return m
+  }, [netlist])
 
   const analysis = useMemo(
     () => ({ kind: 'tran' as const, step: TRAN_STEP, stop: TRAN_STOP }),
@@ -256,6 +267,7 @@ export const WaveformPanel = ({
               probes={probes}
               layout={s.layout}
               onLayout={(update) => updateLayout(s.id, update)}
+              elementTerminals={elementTerminals}
               reference={s.reference}
               onSaveReference={() => saveReference(s.id)}
               onClearReference={() => clearReference(s.id)}

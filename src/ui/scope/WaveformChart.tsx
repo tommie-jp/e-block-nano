@@ -5,6 +5,8 @@ import { measureSeries } from '../../core/simulation/spice/measure'
 import type { NodeProbe } from '../waveProbes'
 import { dominantOscillation, viewWindow } from '../waveProbes'
 import { exprKey } from '../../core/scope/traceExpr'
+import type { ExprSymbols } from '../../core/scope/parseExpr'
+import { AddTraceDialog } from './AddTraceDialog'
 import { Cursors } from './Cursors'
 import type { CursorId } from './Cursors'
 import { fmtHz, fmtT, fmtV } from './format'
@@ -14,6 +16,7 @@ import { MeasurementTable } from './MeasurementTable'
 import { paneHeight, paneScales, panesForRender } from './paneLayout'
 import {
   addPane,
+  addTrace,
   moveTrace,
   removePane,
   removeTrace,
@@ -53,6 +56,8 @@ interface WaveformChartProps {
   onLayout: (update: (l: ScopeLayout) => ScopeLayout) => void
   /** blockId → 素子の表示名 (電流・電力の凡例) */
   deviceLabels?: Readonly<Record<string, string>>
+  /** 式で使える素子と、その両端ノード (電力の式を組むのに要る) */
+  elementTerminals?: Readonly<Record<string, { a: string; b: string }>>
   status?: string | null
   /** 計算中の推定進捗 [%] (0-100)。null なら進捗バーを出さない */
   progress?: number | null
@@ -74,6 +79,7 @@ export const WaveformChart = ({
   layout,
   onLayout,
   deviceLabels,
+  elementTerminals,
   status,
   progress,
   reference,
@@ -87,6 +93,28 @@ export const WaveformChart = ({
   const svgRef = useRef<SVGSVGElement>(null)
   const c = useScopeControls()
   const hasData = waveforms != null && probes.length > 0
+
+  // --- トレース追加 (式エディタ) ---
+  const [addOpen, setAddOpen] = useState(false)
+  const symbols: ExprSymbols = useMemo(
+    () => ({
+      node: (name) =>
+        probes.find((p) => p.label === name || p.nodeId === name)?.nodeId ?? null,
+      block: (name) =>
+        Object.keys(elementTerminals ?? {}).find(
+          (id) => id === name || deviceLabels?.[id] === name,
+        ) ?? null,
+      terminals: (blockId) => elementTerminals?.[blockId] ?? null,
+    }),
+    [probes, deviceLabels, elementTerminals],
+  )
+  const quantities = useMemo(
+    () => [
+      ...probes.map((p) => `V(${p.label})`),
+      ...Object.keys(elementTerminals ?? {}).flatMap((id) => [`I(${id})`, `P(${id})`]),
+    ],
+    [probes, elementTerminals],
+  )
 
   // --- ズーム (矩形ドラッグ / Zoom Back / 全体表示) ---
   const [zoom, setZoom] = useState<ZoomView | null>(null)
@@ -429,6 +457,8 @@ export const WaveformChart = ({
         hasData={hasData}
         cursorsUsable={cursorsUsable}
         onAddPane={() => onLayout(addPane)}
+        onAddTrace={() => setAddOpen((v) => !v)}
+        addTraceOpen={addOpen}
         zoomed={zoom !== null}
         onZoomBack={zoomBack}
         onZoomFit={zoomFit}
@@ -459,6 +489,15 @@ export const WaveformChart = ({
         }
       />
 
+      {addOpen && (
+        <AddTraceDialog
+          quantities={quantities}
+          symbols={symbols}
+          onAdd={(expr) => onLayout((l) => addTrace(l, expr))}
+          onClose={() => setAddOpen(false)}
+        />
+      )}
+
       <ScopeLegend
         probes={probes}
         hidden={hidden}
@@ -471,7 +510,7 @@ export const WaveformChart = ({
           })
         }
         currentTraces={drawTraces.filter(
-          (t) => t.expr.kind === 'i' || t.expr.kind === 'p',
+          (t) => t.expr.kind !== 'v' && t.expr.kind !== 'vdiff',
         )}
         onRemoveTrace={(expr) =>
           onLayout((l) => {
