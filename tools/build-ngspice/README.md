@@ -1,7 +1,7 @@
 # build-ngspice
 
 ライブ連続オシロ（`ui/scope/LiveScopePanel`）用の **libngspice（shared mode）WASM** を生成する
-ビルド工具。CircuitJS1 と同じ方針で、生成物（`src/io/ngspice/libngspice.{mjs,wasm}`）は
+ビルド工具。生成物（`src/io/ngspice/libngspice.{mjs,wasm}`）はサイズが大きいので
 **コミットしない**（`.gitignore` 済み）。clone 直後や CI では下記を一度実行する。
 
 ## 前提

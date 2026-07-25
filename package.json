@@ -1,7 +1,7 @@
 {
   "name": "e-block-nano",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -9,8 +9,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run",
-    "fetch:circuitjs": "bash tools/fetch-circuitjs.sh"
+    "test": "vitest run"
   },
   "dependencies": {
     "eecircuit-engine": "^1.7.0",

@@ -5,8 +5,8 @@ export type Direction = 'N' | 'E' | 'S' | 'W'
 
 /**
  * エンジン非依存の素子仕様 (discriminated union)。
- * ピンは「役割名 → 向き 0 基準の方位」。CircuitJS1 / ngspice への
- * 変換器はこの構造化データだけを見れば書ける (自由文字列を持たない)。
+ * ピンは「役割名 → 向き 0 基準の方位」。SPICE 変換器はこの構造化データだけを
+ * 見れば書ける (自由文字列を持たない)。エンジンを足す場合も同じ前提でよい。
  */
 export type DeviceSpec =
   | { readonly kind: 'resistor'; readonly ohms: number; readonly pins: TwoPins }

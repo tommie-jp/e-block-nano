@@ -62,6 +62,24 @@ describe('createLiveBuffer', () => {
     expect(buf.latestTime()).toBeCloseTo(1.25, 12)
   })
 
+  test('latestCurrents は最新サンプルの blockId → 電流', () => {
+    const buf = createLiveBuffer(10)
+    buf.push(sampleWithI(0, 1.9, 0.005))
+    buf.push(sampleWithI(1, 1.9, 0.003))
+    expect(buf.latestCurrents()).toEqual({ blk: 0.003 })
+  })
+
+  test('latestCurrents は空バッファで null', () => {
+    const buf = createLiveBuffer(10)
+    expect(buf.latestCurrents()).toBeNull()
+  })
+
+  test('latestCurrents は電流プローブが無い回路では空オブジェクト', () => {
+    const buf = createLiveBuffer(10)
+    buf.push(sample(0, 1, 2))
+    expect(buf.latestCurrents()).toEqual({})
+  })
+
   test('clear で空に戻る', () => {
     const buf = createLiveBuffer(10)
     buf.push(sample(0, 1, 2))

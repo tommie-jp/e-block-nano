@@ -1,8 +1,8 @@
 import type { Element, Netlist } from '../../netlist/build'
 
 /**
- * Netlist → SPICE netlist の変換器 (純関数)。CircuitJS 変換器と対になる 2 個目。
- * ngspice(定量エンジン)へ渡す。解析は動作点 `.op` 固定 (直流の点灯判定に十分)。
+ * Netlist → SPICE netlist の変換器 (純関数)。唯一のエンジンである
+ * ngspice へ渡す。解析は動作点 `.op` 固定 (直流の点灯判定に十分)。
  *
  * 方針(実物 ngspice-wasm で素振りして確定):
  * - 基準ノード(groundNode)= SPICE の `0`、他は `n1, n2, …`

@@ -17,8 +17,8 @@ export interface SimulationResult {
 }
 
 /**
- * シミュレータ差し替え境界。
- * CircuitJS1 (見える化) はライブビューで別、ここは定量エンジン (ngspice-wasm)。
+ * シミュレータ差し替え境界。バッチ(要求 → 応答)の定量エンジン (ngspice-wasm) 用。
+ * 連続実行のライブ経路は別契約 (`streamPort.ts` の ScopeStream)。
  * 入力は Netlist 契約 + 解析種別 (.op / .tran)。
  */
 export interface SimulationPort {

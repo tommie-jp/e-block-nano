@@ -28,20 +28,25 @@ npm run build                   # tsc -b && vite build
   concerns into `core/`.
 - `render/` — SVG block glyphs.
 - `ui/` — React components (palette, board view, app shell).
-- `core/simulation/port.ts` — `SimulationPort` is the seam for a **batch/quantitative** engine
-  (ngspice-wasm) later; still a stub. Keep the `Netlist` contract stable.
-- `core/simulation/circuitjs/` — pure `Netlist → CircuitJS1` serializer (`serialize.ts`) and the
-  `?cct=` embed-URL builder (`url.ts`). This is the **live-view** engine and deliberately does NOT
-  go through `SimulationPort` (an iframe is a display, not a request/response call). Two engines,
-  one shared `Netlist` contract + per-engine serializer. Format is verified against the real engine;
-  the LED line must be `162 ... 0 cr cg cb mbc` (flags=0, no model name) or CircuitJS drops it.
-- `ui/SimulatorPanel.tsx` embeds CircuitJS1 in an iframe (gated by lint errors). Engine base URL is
-  `VITE_CIRCUITJS_BASE` (default self-hosted `/circuitjs/`, fetched via `npm run fetch:circuitjs`).
-  `public/circuitjs/` is GPLv2, gitignored. Same-origin (default) uses the **JS-API live connection**
-  (`ui/useCircuitJsLive.ts` + `io/circuitjsApi.ts`): the iframe loads once, netlist changes go through
-  `importCircuit` (no reload), and `onupdate` telemetry maps element currents back to blocks via
-  `serializeCircuitJs().blockIds` (getElements() returns elements in import line order — verified).
-  Cross-origin bases fall back to `?cct=` URL reloads with no telemetry.
+
+### Simulation — ngspice only
+
+**ngspice (WASM) is the only engine.** CircuitJS1 was removed on 2026-07-25: its
+"same pixel coordinate = same node" model cannot express a 3-post transistor, so every
+transistor circuit was invisible in the live view, and each new `DeviceSpec` kind cost a
+second serializer. Don't reintroduce a second engine without revisiting that.
+
+- `core/simulation/port.ts` — `SimulationPort` is the **batch** seam (request → response):
+  `.op` and `.tran`. Keep the `Netlist` contract stable.
+- `core/simulation/streamPort.ts` — `ScopeStream` is the **continuous/live** seam, deliberately
+  separate from `SimulationPort` (a running simulation is not a request/response call).
+  Samples are `{ t, values: nodeId→V, currents: blockId→A }`.
+- `core/simulation/spice/` — pure `Netlist → SPICE netlist` serializer plus result mapping.
+  `currentProbes` is what lets a result vector come back as a `blockId` current; a device with
+  no probe simply shows no current (transistors currently have none).
+- `ui/scope/LiveScopePanel.tsx` — libngspice shared-mode streaming, drawn at 60fps from
+  `ui/scope/liveBuffer.ts` (bounded ring buffer). Its `onLiveCurrents` feeds the board's
+  per-block current display; `App` falls back to the `.op` currents when nothing is streaming.
 
 ## Netlist model
 

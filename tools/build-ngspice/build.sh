@@ -2,7 +2,7 @@
 #
 # libngspice(shared mode)を WebAssembly 化し、src/io/ngspice/ へ出力する。
 #
-# ライブ連続オシロ(LiveScopePanel)用の自前エンジン。CircuitJS1 と同じく wasm は
+# ライブ連続オシロ(LiveScopePanel)用の自前エンジン。wasm はサイズが大きいので
 # コミットせず(gitignore)、このスクリプトで生成する。
 #
 # 前提: emsdk(ネイティブ emcc)。Docker 不要。

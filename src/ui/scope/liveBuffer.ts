@@ -1,6 +1,9 @@
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import type { LiveSample } from '../../core/simulation/streamPort'
 
+/** blockId → 電流 [A] の瞬時値。BoardView の `elementCurrents` と同じ形 */
+export type LiveCurrents = Readonly<Record<string, number>>
+
 /**
  * ライブストリーム用の固定容量リングバッファ(純ロジック)。
  *
@@ -17,6 +20,8 @@ export interface LiveBuffer {
   clear(): void
   size(): number
   latestTime(): number | null
+  /** 最新 1 点の素子電流 (ボード上に流れている電流を出すため)。空バッファは null */
+  latestCurrents(): LiveCurrents | null
   toWindow(spanSec?: number): Waveforms
 }
 
@@ -57,6 +62,14 @@ export const createLiveBuffer = (capacity: number): LiveBuffer => {
   const latestTime = (): number | null =>
     count === 0 ? null : time[physical(count - 1)]
 
+  const latestCurrents = (): LiveCurrents | null => {
+    if (count === 0) return null
+    const p = physical(count - 1)
+    const out: Record<string, number> = {}
+    for (let c = 0; c < blockIds.length; c++) out[blockIds[c]] = currentCols[c][p]
+    return out
+  }
+
   const toWindow = (spanSec?: number): Waveforms => {
     if (count === 0) return { time: [], nodeVoltages: {}, elementCurrents: {} }
     const latest = time[physical(count - 1)]
@@ -88,5 +101,5 @@ export const createLiveBuffer = (capacity: number): LiveBuffer => {
     count = 0
   }
 
-  return { push, clear, size: () => count, latestTime, toWindow }
+  return { push, clear, size: () => count, latestTime, latestCurrents, toWindow }
 }
