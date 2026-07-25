@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { getPart, PARTS } from './catalog'
-import { devicePins, rotateDirection } from './types'
+import { devicePins, rotateDirection, wiperOhms } from './types'
 import type { Direction } from './types'
 
 describe('rotateDirection', () => {
@@ -18,6 +18,26 @@ describe('rotateDirection', () => {
   test('rotates by 180 and 270 degrees', () => {
     expect(rotateDirection('N', 180)).toBe('S')
     expect(rotateDirection('N', 270)).toBe('W')
+  })
+})
+
+describe('wiperOhms', () => {
+  test('wiperPct を全抵抗に対する割合として掛ける', () => {
+    expect(wiperOhms(100_000, 100)).toBe(100_000)
+    expect(wiperOhms(100_000, 25)).toBe(25_000)
+  })
+
+  test('省略時は中央 (50%)', () => {
+    expect(wiperOhms(100_000)).toBe(50_000)
+  })
+
+  test('0Ω (ショート) にならないよう下限でクリップする', () => {
+    expect(wiperOhms(100_000, 0)).toBe(1_000) // 下限 1%
+    expect(wiperOhms(100_000, -10)).toBe(1_000)
+  })
+
+  test('100% を超えても全抵抗で止まる', () => {
+    expect(wiperOhms(100_000, 250)).toBe(100_000)
   })
 })
 
@@ -52,6 +72,21 @@ describe('catalog', () => {
       for (const dir of dirs) expect(DIRECTIONS).toContain(dir)
       // 2 つの役割が同じ辺を指すと素子の端子が潰れる
       expect(new Set(dirs).size).toBe(dirs.length)
+    }
+  })
+
+  test('可変抵抗・信号源のパラメータも正の値', () => {
+    for (const part of PARTS) {
+      const d = part.device
+      if (d?.kind === 'potentiometer') expect(d.maxOhms).toBeGreaterThan(0)
+      if (d?.kind === 'ac-source' && d.wave.kind === 'sin') {
+        expect(d.wave.hertz).toBeGreaterThan(0)
+        expect(d.wave.amplitudeVolts).toBeGreaterThan(0)
+      }
+      if (d?.kind === 'ac-source' && d.wave.kind === 'pulse') {
+        expect(d.wave.widthSeconds).toBeGreaterThan(0)
+        expect(d.wave.periodSeconds).toBeGreaterThan(d.wave.widthSeconds)
+      }
     }
   })
 

@@ -23,6 +23,22 @@ export type DeviceSpec =
     }
   | { readonly kind: 'switch'; readonly pins: TwoPins }
   | {
+      /**
+       * 可変抵抗。2 端子 (レオスタット) として扱い、ワイパ位置は配置ごとの
+       * `PlacementState.wiperPct` が持つ。分圧に使う 3 端子版は用途が出てから。
+       */
+      readonly kind: 'potentiometer'
+      /** ワイパを回し切ったときの抵抗 (全抵抗) */
+      readonly maxOhms: number
+      readonly pins: TwoPins
+    }
+  | {
+      /** 信号源。AF/RF の入力とタイマーのトリガを兼ねる */
+      readonly kind: 'ac-source'
+      readonly wave: SourceWave
+      readonly pins: { readonly plus: Direction; readonly minus: Direction }
+    }
+  | {
       readonly kind: 'battery'
       readonly volts: number
       readonly pins: { readonly plus: Direction; readonly minus: Direction }
@@ -35,6 +51,27 @@ export type DeviceSpec =
         readonly collector: Direction
         readonly emitter: Direction
       }
+    }
+
+/**
+ * 信号源の波形。SPICE の `SIN(vo va freq)` / `PULSE(v1 v2 td tr tf pw per)` へ
+ * そのまま写せる形にしている (エンジン非依存の値だけを持つ)。
+ */
+export type SourceWave =
+  | {
+      readonly kind: 'sin'
+      readonly offsetVolts: number
+      readonly amplitudeVolts: number
+      readonly hertz: number
+    }
+  | {
+      readonly kind: 'pulse'
+      readonly lowVolts: number
+      readonly highVolts: number
+      readonly delaySeconds: number
+      readonly widthSeconds: number
+      /** 繰り返し周期。解析時間より長くすれば単発トリガになる */
+      readonly periodSeconds: number
     }
 
 /** 無極性 2 端子 */
@@ -50,6 +87,21 @@ export interface PolarPins {
 }
 
 export type DeviceKind = DeviceSpec['kind']
+
+/** ワイパ位置を省略したときの既定 (つまみ中央) */
+export const WIPER_DEFAULT_PCT = 50
+/** 下限。0% を許すと 0Ω = ショートになり解が壊れる (実物にも残留抵抗がある) */
+export const WIPER_MIN_PCT = 1
+
+/**
+ * 可変抵抗の実効抵抗 [Ω]。全抵抗にワイパ位置 (0–100%) を掛ける。
+ * 範囲外は {@link WIPER_MIN_PCT}–100% にクリップする (境界検証済みの値に対する防御)。
+ */
+export const wiperOhms = (maxOhms: number, wiperPct?: number): number => {
+  const pct = wiperPct ?? WIPER_DEFAULT_PCT
+  const clamped = Math.min(100, Math.max(WIPER_MIN_PCT, pct))
+  return (maxOhms * clamped) / 100
+}
 
 /**
  * ブロック 1 種の定義。旧版の本質 =「部品 + ブロック内配線パターン」。

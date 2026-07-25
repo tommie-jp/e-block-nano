@@ -60,13 +60,31 @@ const asIndex = (v: unknown, field: string): number => {
   return v
 }
 
+const asPercent = (v: unknown, field: string): number => {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 100) {
+    throw new BoardFileError(`${field} は 0〜100 の数値が必要です`)
+  }
+  return v
+}
+
+/**
+ * 実行時状態を検証する。既知のフィールドだけを拾い直すので、未知のキーは落ちる。
+ * どのフィールドも無ければ undefined (state 自体を持たせない)。
+ */
 const parseState = (v: unknown): PlacementState | undefined => {
   if (v === undefined) return undefined
   if (!isObject(v)) throw new BoardFileError('state はオブジェクトが必要です')
   if (v.closed !== undefined && typeof v.closed !== 'boolean') {
     throw new BoardFileError('state.closed は真偽値が必要です')
   }
-  return v.closed === undefined ? undefined : { closed: v.closed }
+
+  const state: PlacementState = {
+    ...(v.closed === undefined ? {} : { closed: v.closed }),
+    ...(v.wiperPct === undefined
+      ? {}
+      : { wiperPct: asPercent(v.wiperPct, 'state.wiperPct') }),
+  }
+  return Object.keys(state).length === 0 ? undefined : state
 }
 
 const parsePlacement = (

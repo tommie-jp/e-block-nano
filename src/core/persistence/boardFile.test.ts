@@ -38,6 +38,30 @@ describe('boardFile round-trip', () => {
     expect(restoredSwitch?.state?.closed).toBe(true)
   })
 
+  test('可変抵抗のワイパ位置 (wiperPct) も保存・復元される', () => {
+    // state は部品種に紐づかない自由な実行時状態なので、既存部品で境界だけ検証する
+    const text = JSON.stringify({
+      version: BOARD_FILE_VERSION,
+      rows: 6,
+      cols: 8,
+      placements: [
+        {
+          partId: 'resistor-1k',
+          cell: { row: 0, col: 0 },
+          orientation: 0,
+          state: { wiperPct: 30 },
+        },
+      ],
+    })
+
+    const restored = deserializeBoard(text)
+    expect(restored.placements[0].state?.wiperPct).toBe(30)
+    // 再直列化しても落ちない
+    expect(
+      deserializeBoard(serializeBoard(restored)).placements[0].state?.wiperPct,
+    ).toBe(30)
+  })
+
   test('assigns fresh block ids that do not collide with new placements', () => {
     const restored = deserializeBoard(serializeBoard(sampleBoard()))
     const next = placeBlock(restored, 'wire-i', { row: 5, col: 5 })
@@ -95,6 +119,28 @@ describe('boardFile validation (system boundary)', () => {
       ],
     })
     expect(() => deserializeBoard(text)).toThrow(/orientation/)
+  })
+
+  test('rejects a wiperPct outside 0–100', () => {
+    const withWiper = (wiperPct: unknown) =>
+      JSON.stringify({
+        version: BOARD_FILE_VERSION,
+        rows: 6,
+        cols: 8,
+        placements: [
+          {
+            partId: 'resistor-1k',
+            cell: { row: 0, col: 0 },
+            orientation: 0,
+            state: { wiperPct },
+          },
+        ],
+      })
+
+    expect(() => deserializeBoard(withWiper(101))).toThrow(/wiperPct/)
+    expect(() => deserializeBoard(withWiper(-1))).toThrow(/wiperPct/)
+    expect(() => deserializeBoard(withWiper('50'))).toThrow(/wiperPct/)
+    expect(() => deserializeBoard(withWiper(Number.NaN))).toThrow(/wiperPct/)
   })
 
   test('rejects two placements on the same cell', () => {

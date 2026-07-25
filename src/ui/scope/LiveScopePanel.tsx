@@ -42,6 +42,8 @@ const KIND_LABEL: Record<DeviceKind, string> = {
   led: 'LED',
   diode: 'ダイオード',
   'transistor-npn': 'トランジスタ',
+  potentiometer: '可変抵抗',
+  'ac-source': '信号源',
 }
 
 interface LiveScopePanelProps {

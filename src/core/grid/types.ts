@@ -16,7 +16,12 @@ export interface Cell {
 export interface PlacementState {
   /** スイッチの開閉。true=閉 (導通)。省略時は開 (false) */
   readonly closed?: boolean
-  // 将来: 可変抵抗/バリコンの wiperPct など
+  /**
+   * 可変抵抗のワイパ位置 [%] (0–100)。省略時は中央 (`WIPER_DEFAULT_PCT`)。
+   * 実効抵抗への換算は `core/parts/types.ts` の `wiperOhms`。
+   */
+  readonly wiperPct?: number
+  // 将来: バリコンの容量位置など
 }
 
 /** ブロック 1 個の配置。カメラ認識も将来これを出力する (state は除く) */
