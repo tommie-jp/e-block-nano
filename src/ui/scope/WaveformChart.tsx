@@ -55,6 +55,8 @@ interface WaveformChartProps {
   currents?: Readonly<Record<string, readonly number[]>>
   /** blockId → 電流トレースの表示名 */
   currentLabels?: Readonly<Record<string, string>>
+  /** 電流の凡例クリックでプローブを外す (渡さなければ凡例は表示のみ) */
+  onToggleCurrent?: (blockId: string) => void
   /** ボードで選択中の素子。電流トレースを太線＋他を薄くして強調 */
   selectedBlockId?: string | null
   /** このオシロ画面の見出し (例: "オシロ 1")。複数画面のときに表示 */
@@ -109,6 +111,7 @@ export const WaveformChart = ({
   onClearReference,
   currents,
   currentLabels,
+  onToggleCurrent,
   selectedBlockId,
   title,
   canRemove = false,
@@ -780,11 +783,15 @@ export const WaveformChart = ({
           const sel = id === selectedBlockId
           return (
             <li key={t.key}>
-              <span
+              <button
+                type="button"
                 className="wave-legend-item"
+                onClick={() => onToggleCurrent?.(id)}
+                title={onToggleCurrent ? 'クリックで電流プローブを外す' : undefined}
                 style={{
                   opacity: selectedBlockId && !sel ? 0.5 : 1,
                   fontWeight: sel ? 700 : 400,
+                  cursor: onToggleCurrent ? 'pointer' : 'default',
                 }}
               >
                 <span
@@ -795,7 +802,7 @@ export const WaveformChart = ({
                 />
                 {t.label} {fmtI(last)}
                 {sel ? ' ◀ 選択' : ''}
-              </span>
+              </button>
             </li>
           )
         })}

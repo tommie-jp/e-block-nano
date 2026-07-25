@@ -169,3 +169,37 @@ describe('buildNetlist elements', () => {
     expect(rotated.pinNodes.collector).not.toBe(base.pinNodes.collector)
   })
 })
+
+describe('buildNetlist nodeOfEdge', () => {
+  test('maps each occupied contact edge to the node it belongs to', () => {
+    // Arrange: wire-i (N-S 導通) を縦に 2 つ → 3 本の辺が 1 ノードに併合される
+    let board = createBoard(6, 8)
+    board = placeBlock(board, 'wire-i', { row: 0, col: 0 })
+    board = placeBlock(board, 'wire-i', { row: 1, col: 0 })
+
+    // Act
+    const { nodeOfEdge, nets } = buildNetlist(board)
+
+    // Assert: 3 辺すべてが同じ nodeId を指し、それは実在するネット
+    expect(nodeOfEdge['H:0,0']).toBe(nodeOfEdge['H:1,0'])
+    expect(nodeOfEdge['H:1,0']).toBe(nodeOfEdge['H:2,0'])
+    expect(nets.some((n) => n.nodeId === nodeOfEdge['H:0,0'])).toBe(true)
+  })
+
+  test('has no entry for an edge no block touches', () => {
+    const board = placeBlock(createBoard(6, 8), 'wire-i', { row: 0, col: 0 })
+
+    expect(buildNetlist(board).nodeOfEdge['V:4,4']).toBeUndefined()
+  })
+
+  test('maps the two pins of a device to distinct nodes', () => {
+    // resistor-1k (a=N, b=S) を (2,2) に置く → N辺 H:2,2 と S辺 H:3,2
+    const board = placeBlock(createBoard(6, 8), 'resistor-1k', { row: 2, col: 2 })
+
+    const { nodeOfEdge, elements } = buildNetlist(board)
+
+    expect(nodeOfEdge['H:2,2']).toBe(elements[0].pinNodes.a)
+    expect(nodeOfEdge['H:3,2']).toBe(elements[0].pinNodes.b)
+    expect(nodeOfEdge['H:2,2']).not.toBe(nodeOfEdge['H:3,2'])
+  })
+})

@@ -22,6 +22,9 @@ import type { LiveCurrents } from './useCircuitJsLive'
 import type { NodeProbe } from './waveProbes'
 import { WaveformPanel } from './WaveformPanel'
 import { LiveScopePanel } from './scope/LiveScopePanel'
+import type { ProbePick } from './scope/probePick'
+import { toggleHidden, toggleTrace } from './scope/probeTraces'
+import type { ProbeTrace } from './scope/probeTraces'
 
 const errorMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e)
@@ -36,6 +39,10 @@ export const App = (): ReactElement => {
   const [waveProbes, setWaveProbes] = useState<NodeProbe[]>([])
   const [ngspiceOn, setNgspiceOn] = useState(true)
   const [simulating, setSimulating] = useState(false)
+  // ライブオシロのプローブ (ボードから当てる)。編集操作と衝突しないようモード制
+  const [probing, setProbing] = useState(false)
+  const [probeTraces, setProbeTraces] = useState<readonly ProbeTrace[]>([])
+  const [hiddenNodes, setHiddenNodes] = useState<ReadonlySet<string>>(new Set())
   const ngspice = useMemo(() => createNgspiceSimulator(), [])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const mainRef = useRef<HTMLElement>(null)
@@ -107,6 +114,15 @@ export const App = (): ReactElement => {
       editor.reportError(`サンプル読込失敗: ${errorMessage(err)}`)
     }
   }
+
+  // 接点 = 電圧トレースの表示トグル、素子 = 電流トレースの追加/削除
+  const handleProbe = (pick: ProbePick): void => {
+    if (pick.kind === 'node') setHiddenNodes((h) => toggleHidden(h, pick.nodeId))
+    else setProbeTraces((t) => toggleTrace(t, { kind: 'current', blockId: pick.blockId }))
+  }
+
+  const handleProbeDiff = (pair: { a: string; b: string }): void =>
+    setProbeTraces((t) => toggleTrace(t, { kind: 'diff', ...pair }))
 
   const netlist = useMemo(() => buildNetlist(editor.board), [editor.board])
   const findings = useMemo(() => lintCircuit(netlist), [netlist])
@@ -261,6 +277,10 @@ export const App = (): ReactElement => {
               (ngspiceOn ? simResult?.elementCurrents : undefined)
             }
             probes={waveProbes}
+            probing={probing}
+            netlist={netlist}
+            onProbe={handleProbe}
+            onProbeDiff={handleProbeDiff}
           />
           <div className="toolbar">
             <button
@@ -293,6 +313,15 @@ export const App = (): ReactElement => {
               onClick={() => setNgspiceOn((v) => !v)}
             >
               ngspice で計算
+            </button>
+            <button
+              type="button"
+              className="toggle"
+              aria-pressed={probing}
+              onClick={() => setProbing((v) => !v)}
+              title="接点をクリック=電圧、素子をクリック=電流、接点→接点のドラッグ=差動電圧"
+            >
+              プローブ
             </button>
             <span className="status">
               ブロック: {editor.board.placements.length} / ネット:{' '}
@@ -334,6 +363,12 @@ export const App = (): ReactElement => {
           netlist={netlist}
           title="ライブオシロ (ngspice 連続)"
           selectedBlockId={editor.selectedBlockId}
+          traces={probeTraces}
+          hidden={hiddenNodes}
+          onToggleHidden={(nodeId) =>
+            setHiddenNodes((h) => toggleHidden(h, nodeId))
+          }
+          onToggleTrace={(t) => setProbeTraces((list) => toggleTrace(list, t))}
         />
       </div>
     </div>

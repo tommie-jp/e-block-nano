@@ -42,6 +42,13 @@ export interface Netlist {
   readonly nets: readonly Net[]
   readonly elements: readonly Element[]
   /**
+   * 辺キー (接点位置) → その辺が属する nodeId。ブロックが触れている辺だけを持つ。
+   * ネットの代表以外の辺も引けるので、盤面座標 → ノードの逆引き (プローブの
+   * ヒットテスト) に使える。`nets` から復元しようとすると build の内部配線処理を
+   * UI 側で再実装することになるため、ここで公開する。
+   */
+  readonly nodeOfEdge: Readonly<Record<string, string>>
+  /**
    * 基準ノード (SPICE の node 0)。最初の電池のマイナス端子ノードを 0V とする規約。
    * 電池が無ければ null (シミュレーション不能。将来の circuit lint が検出する)。
    */
@@ -128,9 +135,11 @@ export const buildNetlist = (board: Board): Netlist => {
   }
 
   const netsByRoot = new Map<string, Terminal[]>()
+  const nodeOfEdge: Record<string, string> = {}
   for (const [key, terminals] of terminalsByEdge) {
     const root = uf.find(key)
     netsByRoot.set(root, [...(netsByRoot.get(root) ?? []), ...terminals])
+    nodeOfEdge[key] = root
   }
   const nets: Net[] = [...netsByRoot.entries()].map(([nodeId, terminals]) => ({
     nodeId,
@@ -150,5 +159,5 @@ export const buildNetlist = (board: Board): Netlist => {
   const battery = elements.find((e) => e.device.kind === 'battery')
   const groundNode = battery ? battery.pinNodes.minus : null
 
-  return { nets, elements, groundNode }
+  return { nets, elements, nodeOfEdge, groundNode }
 }

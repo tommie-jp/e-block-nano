@@ -900,6 +900,48 @@ body {
   stroke-linejoin: round;
 }
 
+/* --- プローブモード (LTspice の回路図プローブ相当) --- */
+.board.probing {
+  cursor: crosshair;
+}
+
+.probe-hit-layer {
+  pointer-events: none;
+}
+
+.probe-hit {
+  fill: none;
+  stroke: #ff5252;
+  stroke-width: 2.5;
+}
+
+/* 素子の胴体 = 電流クランプ。接点 (電圧) と区別するため破線の枠 */
+.probe-hit.current {
+  stroke-dasharray: 5 3;
+}
+
+/* 差動ドラッグの始点 (押したままの接点) と、そこから伸びるゴムひも */
+.probe-hit.from {
+  fill: #ff5252;
+  fill-opacity: 0.35;
+}
+
+.probe-hit-link {
+  stroke: #ff5252;
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+
+.probe-hit-label {
+  fill: #ff5252;
+  font-size: 13px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: #000;
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
 /* --- モバイル (縦持ち) --- */
 @media (max-width: 700px) {
   .app {

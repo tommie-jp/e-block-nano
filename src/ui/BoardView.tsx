@@ -2,9 +2,12 @@ import { useCallback, useRef, useState } from 'react'
 import type { PointerEvent, ReactElement } from 'react'
 import { isInside } from '../core/grid/types'
 import type { Board, Cell, Placement } from '../core/grid/types'
+import type { Netlist } from '../core/netlist/build'
 import { getPart } from '../core/parts/catalog'
 import { BlockGlyph } from '../render/BlockGlyph'
 import { CELL_SIZE } from '../render/constants'
+import { diffPick, pickProbe } from './scope/probePick'
+import type { ProbePick } from './scope/probePick'
 import type { NodeProbe } from './waveProbes'
 import { probePoint } from './waveProbes'
 
@@ -36,6 +39,17 @@ interface BoardViewProps {
   elementCurrents?: Readonly<Record<string, number>>
   /** 波形表示中のノード。位置に色つき●を重ねて波形の色と対応づける */
   probes?: readonly NodeProbe[]
+  /**
+   * プローブモード (LTspice の回路図プローブ相当)。ON の間は編集操作
+   * (配置/移動/選択) を止め、接点=電圧・素子=電流を当てる操作に切り替える。
+   */
+  probing?: boolean
+  /** プローブモードのヒットテストに使う回路 (辺 → ノードの逆引き) */
+  netlist?: Netlist
+  /** 接点/素子にプローブを当てた (トグル) */
+  onProbe?: (pick: ProbePick) => void
+  /** 接点 → 接点のドラッグ = 差動電圧 V(a)−V(b) */
+  onProbeDiff?: (pair: { a: string; b: string }) => void
 }
 
 /** グリッドとブロックの SVG 表示。ドラッグでブロック移動 */
@@ -47,9 +61,15 @@ export const BoardView = ({
   onBlockDoubleClick,
   elementCurrents,
   probes,
+  probing = false,
+  netlist,
+  onProbe,
+  onProbeDiff,
 }: BoardViewProps): ReactElement => {
   const svgRef = useRef<SVGSVGElement>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
+  const [hoverPick, setHoverPick] = useState<ProbePick | null>(null)
+  const [probeFrom, setProbeFrom] = useState<ProbePick | null>(null)
 
   const width = board.cols * CELL_SIZE
   const height = board.rows * CELL_SIZE
@@ -80,8 +100,34 @@ export const BoardView = ({
     [cellFromPoint],
   )
 
+  /** プローブモードの当たり判定。netlist が無ければ当たらない */
+  const pickAt = useCallback(
+    (pt: { x: number; y: number }): ProbePick | null =>
+      netlist ? pickProbe(board, netlist, pt) : null,
+    [board, netlist],
+  )
+
+  const handleProbeDown = (e: PointerEvent): void => {
+    const pt = toSvgPoint(e)
+    svgRef.current?.setPointerCapture(e.pointerId)
+    setProbeFrom(pickAt(pt))
+  }
+
+  const handleProbeUp = (e: PointerEvent): void => {
+    const pick = pickAt(toSvgPoint(e))
+    // 接点 → 別接点のドラッグなら差動、それ以外は当てた 1 点のトグル
+    const pair = diffPick(probeFrom, pick)
+    if (pair) onProbeDiff?.(pair)
+    else if (pick) onProbe?.(pick)
+    setProbeFrom(null)
+  }
+
   const handleBlockPointerDown = (e: PointerEvent, p: Placement): void => {
     e.stopPropagation()
+    if (probing) {
+      handleProbeDown(e)
+      return
+    }
     const pt = toSvgPoint(e)
     svgRef.current?.setPointerCapture(e.pointerId)
     setDrag({
@@ -98,6 +144,10 @@ export const BoardView = ({
   }
 
   const handlePointerMove = (e: PointerEvent): void => {
+    if (probing) {
+      setHoverPick(pickAt(toSvgPoint(e)))
+      return
+    }
     if (!drag) return
     const pt = toSvgPoint(e)
     const dx = pt.x - drag.startX
@@ -109,7 +159,11 @@ export const BoardView = ({
     setDrag({ ...drag, dx, dy, moved })
   }
 
-  const handlePointerUp = (): void => {
+  const handlePointerUp = (e: PointerEvent): void => {
+    if (probing) {
+      handleProbeUp(e)
+      return
+    }
     if (!drag) return
     if (drag.moved) {
       // 指で隠れる指位置ではなく、見えているブロック中心を着地先にする
@@ -122,18 +176,37 @@ export const BoardView = ({
   }
 
   const handleBackgroundClick = (e: PointerEvent): void => {
+    if (probing) {
+      handleProbeDown(e)
+      return
+    }
     const pt = toSvgPoint(e)
     onCellClick(cellFromPoint(pt.x, pt.y))
   }
 
+  // プローブモードのホバー表示: 接点なら電圧 (V)、素子セルなら電流 (I)
+  const hoverContact = hoverPick?.kind === 'node' ? probePoint(hoverPick.edge) : null
+  const fromContact = probeFrom?.kind === 'node' ? probePoint(probeFrom.edge) : null
+  const hoverCell =
+    hoverPick?.kind === 'current'
+      ? board.placements.find((p) => p.blockId === hoverPick.blockId)?.cell
+      : undefined
+  const draggingDiff =
+    fromContact !== null &&
+    hoverContact !== null &&
+    probeFrom?.kind === 'node' &&
+    hoverPick?.kind === 'node' &&
+    probeFrom.edge !== hoverPick.edge
+
   return (
     <svg
       ref={svgRef}
-      className="board"
+      className={probing ? 'board probing' : 'board'}
       viewBox={`0 0 ${width} ${height}`}
       onPointerDown={handleBackgroundClick}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerLeave={() => setHoverPick(null)}
     >
       {/* グリッド線 */}
       {Array.from({ length: board.rows + 1 }, (_, r) => (
@@ -182,7 +255,8 @@ export const BoardView = ({
             transform={`translate(${tx}, ${ty})`}
             className={isDragging ? 'block dragging' : 'block'}
             onPointerDown={(e) => handleBlockPointerDown(e, p)}
-            onDoubleClick={() => onBlockDoubleClick(p.blockId)}
+            // プローブ中はブロックを測る操作なので、編集 (回転) は起こさない
+            onDoubleClick={() => !probing && onBlockDoubleClick(p.blockId)}
           >
             <BlockGlyph
               part={getPart(p.partId)}
@@ -194,6 +268,53 @@ export const BoardView = ({
           </g>
         )
       })}
+      {/* プローブモードのヒット表示 (LTspice のプローブカーソル相当) */}
+      {probing && (
+        <g className="probe-hit-layer">
+          {draggingDiff && (
+            <line
+              className="probe-hit-link"
+              x1={fromContact.x}
+              y1={fromContact.y}
+              x2={hoverContact.x}
+              y2={hoverContact.y}
+            />
+          )}
+          {fromContact && (
+            <circle
+              className="probe-hit from"
+              cx={fromContact.x}
+              cy={fromContact.y}
+              r={9}
+            />
+          )}
+          {hoverContact && (
+            <g transform={`translate(${hoverContact.x}, ${hoverContact.y})`}>
+              <circle className="probe-hit node" r={11} />
+              <text className="probe-hit-label" x={14} y={5}>
+                V
+              </text>
+            </g>
+          )}
+          {hoverCell && (
+            <g
+              transform={`translate(${hoverCell.col * CELL_SIZE}, ${hoverCell.row * CELL_SIZE})`}
+            >
+              <rect
+                className="probe-hit current"
+                x={4}
+                y={4}
+                width={CELL_SIZE - 8}
+                height={CELL_SIZE - 8}
+                rx={5}
+              />
+              <text className="probe-hit-label" x={CELL_SIZE - 16} y={CELL_SIZE - 8}>
+                I
+              </text>
+            </g>
+          )}
+        </g>
+      )}
       {/* 波形に出ているノードの位置に、波形と同色の●を重ねる (色=ノードの対応) */}
       {probes && probes.length > 0 && (
         <g className="probe-layer">

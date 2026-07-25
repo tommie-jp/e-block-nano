@@ -7,14 +7,18 @@ import type { ScopeStream } from '../../core/simulation/streamPort'
 import { createScopeStream } from '../../io/scopeStreamEngine'
 import { selectProbes } from '../waveProbes'
 import { createLiveBuffer } from './liveBuffer'
-import { selectedMathNodes } from './mathTrace'
+import { diffNodes, probedCurrents } from './probeTraces'
+import type { ProbeTrace } from './probeTraces'
 import { WaveformChart } from './WaveformChart'
 
 /**
  * ライブ連続オシロ(本物のリアルタイム掃引)。libngspice(shared mode)の連続 `.tran` を
- * worker で回し、`SendData` の各点をリングバッファへ流し込み、60fps で電圧を
- * {@link WaveformChart}、電流を {@link CurrentTrace} に描く。実行中に抵抗値の alter や
- * スイッチの ON/OFF をすると、走っている波形・電流がその場で変わる。
+ * worker で回し、`SendData` の各点をリングバッファへ流し込み、60fps で
+ * {@link WaveformChart} に描く。実行中に抵抗値の alter やスイッチの ON/OFF を
+ * すると、走っている波形・電流がその場で変わる。
+ *
+ * 何を映すかは親 (App) が持つプローブ一覧 ({@link ProbeTrace}) で決まる。
+ * ボードの接点/素子を直接プローブする LTspice 流の操作系 (`ui/scope/probePick`)。
  */
 
 const STEP = 0.005 // .tran 最大刻み [s]
@@ -25,6 +29,9 @@ const CAPACITY = 200_000 // リングバッファ容量(有界メモリ)
 const TIMEBASES = [0.5, 1, 2, 4]
 const SW_CLOSED_OHMS = 0.001 // スイッチ閉(serialize.ts と一致)
 const SW_OPEN_OHMS = 1e9 // スイッチ開
+// 既定値を毎レンダー作らない (子の memo 依存が無駄に変わるため)
+const NO_HIDDEN: ReadonlySet<string> = new Set()
+const NO_TRACES: readonly ProbeTrace[] = []
 
 const KIND_LABEL: Record<DeviceKind, string> = {
   battery: '電池',
@@ -39,20 +46,28 @@ const KIND_LABEL: Record<DeviceKind, string> = {
 interface LiveScopePanelProps {
   netlist: Netlist
   title?: string
-  /** ボードで選択中の素子。両端電圧(Math)と電流を強調する */
+  /** ボードで選択中の素子。電流トレースを強調する */
   selectedBlockId?: string | null
+  /** ボードから当てたプローブ (電流・差動)。電圧は既定で全ノード表示 */
+  traces?: readonly ProbeTrace[]
+  /** 表示を消したノード (凡例トグル / 接点プローブ) */
+  hidden?: ReadonlySet<string>
+  onToggleHidden?: (nodeId: string) => void
+  onToggleTrace?: (trace: ProbeTrace) => void
 }
 
 export const LiveScopePanel = ({
   netlist,
   title,
   selectedBlockId,
+  traces = NO_TRACES,
+  hidden = NO_HIDDEN,
+  onToggleHidden,
+  onToggleTrace,
 }: LiveScopePanelProps): ReactElement => {
   const [running, setRunning] = useState(false)
   const [waveforms, setWaveforms] = useState<Waveforms | null>(null)
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
   const [timebase, setTimebase] = useState(1)
-  const [showCurrent, setShowCurrent] = useState(true)
   const [swClosed, setSwClosed] = useState<Record<string, boolean>>({})
 
   const bufRef = useRef(createLiveBuffer(CAPACITY))
@@ -133,19 +148,13 @@ export const LiveScopePanel = ({
   }
 
   const probes = useMemo(() => (waveforms ? selectProbes(waveforms) : []), [waveforms])
-  // 選択素子の両端電圧(V(a)-V(b))を白い Math トレースで重ねる
-  const mathNodes = useMemo(
-    () => (selectedBlockId ? selectedMathNodes(netlist, selectedBlockId) : null),
-    [netlist, selectedBlockId],
+  // 差動プローブ (接点 → 接点のドラッグ) を白い Math トレースで重ねる
+  const mathNodes = useMemo(() => diffNodes(traces), [traces])
+  // 電流は当てた素子だけ (LTspice と同じくプローブで選ぶ)
+  const currents = useMemo(
+    () => probedCurrents(traces, waveforms?.elementCurrents ?? {}),
+    [traces, waveforms],
   )
-
-  const onToggle = (nodeId: string): void =>
-    setHidden((h) => {
-      const next = new Set(h)
-      if (next.has(nodeId)) next.delete(nodeId)
-      else next.add(nodeId)
-      return next
-    })
 
   const resistors = netlist.elements.filter((e) => e.device.kind === 'resistor')
   const latest = bufRef.current.latestTime()
@@ -178,14 +187,11 @@ export const LiveScopePanel = ({
             {tb}x
           </button>
         ))}
-        <label style={{ marginLeft: 8, fontSize: 12, opacity: 0.9 }}>
-          <input
-            type="checkbox"
-            checked={showCurrent}
-            onChange={(e) => setShowCurrent(e.target.checked)}
-          />{' '}
-          電流表示
-        </label>
+        <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.75 }}>
+          {traces.length === 0
+            ? 'ボードの「プローブ」で 接点=電圧 / 素子=電流 / 接点→接点=差動'
+            : `プローブ ${traces.length} 本 (凡例クリックで外す)`}
+        </span>
       </div>
 
       {switches.length > 0 && (
@@ -233,11 +239,12 @@ export const LiveScopePanel = ({
         waveforms={waveforms}
         probes={probes}
         hidden={hidden}
-        onToggle={onToggle}
+        onToggle={(nodeId) => onToggleHidden?.(nodeId)}
         status={status}
         mathNodes={mathNodes}
-        currents={showCurrent ? waveforms?.elementCurrents : undefined}
+        currents={currents}
         currentLabels={deviceLabels}
+        onToggleCurrent={(blockId) => onToggleTrace?.({ kind: 'current', blockId })}
         selectedBlockId={selectedBlockId}
         title={title}
       />
