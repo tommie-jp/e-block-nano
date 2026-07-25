@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { CursorId, CursorState } from './Cursors'
+import type { FftWindow } from '../../core/simulation/spice/fft'
 import { DEFAULT_SWEEP_SECONDS } from './sweep'
 import type { Slope } from './trigger'
 
@@ -46,6 +47,9 @@ export interface ScopeControls {
   setXySel: (update: (s: { x: string; y: string }) => { x: string; y: string }) => void
   fftSel: string
   setFftSel: (id: string) => void
+  /** FFT の窓関数 (Hann / Hamming / 矩形) */
+  fftWindow: FftWindow
+  cycleFftWindow: () => void
 }
 
 export const useScopeControls = (): ScopeControls => {
@@ -61,6 +65,7 @@ export const useScopeControls = (): ScopeControls => {
   const [dragging, setDragging] = useState<CursorId | null>(null)
   const [xySel, setXySel] = useState<{ x: string; y: string }>({ x: '', y: '' })
   const [fftSel, setFftSel] = useState('')
+  const [fftWindow, setFftWindow] = useState<FftWindow>('hann')
 
   return {
     view,
@@ -103,5 +108,8 @@ export const useScopeControls = (): ScopeControls => {
     setXySel,
     fftSel,
     setFftSel,
+    fftWindow,
+    cycleFftWindow: () =>
+      setFftWindow((w) => (w === 'hann' ? 'hamming' : w === 'hamming' ? 'rect' : 'hann')),
   }
 }

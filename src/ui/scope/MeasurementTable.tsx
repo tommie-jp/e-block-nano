@@ -1,11 +1,10 @@
 import type { ReactElement } from 'react'
+import { unitOf } from '../../core/scope/traceExpr'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import { measureSeries } from '../../core/simulation/spice/measure'
-import type { NodeProbe } from '../waveProbes'
-
-/** 電圧を V / mV で見やすく */
-const fmtV = (v: number): string =>
-  Math.abs(v) >= 1 ? `${v.toFixed(2)} V` : `${(v * 1000).toFixed(0)} mV`
+import { intervalStats } from './cursorReadout'
+import { fmtI, fmtV, fmtW } from './format'
+import type { DrawTrace } from './traceSeries'
 
 /** 周波数を Hz / kHz で。発振無しは — */
 const fmtFreq = (f: number | null): string =>
@@ -14,43 +13,61 @@ const fmtFreq = (f: number | null): string =>
 const fmtDuty = (d: number | null): string =>
   d == null ? '—' : `${(d * 100).toFixed(0)} %`
 
+/** 単位に合わせた値の書式 (V / mA / mW / 無次元) */
+const formatter = (trace: DrawTrace): ((v: number) => string) => {
+  switch (unitOf(trace.expr)) {
+    case 'A':
+      return fmtI
+    case 'W':
+      return fmtW
+    case 'V':
+      return fmtV
+    default:
+      return (v) => v.toPrecision(3)
+  }
+}
+
 /**
- * 各チャンネルの自動測定値をコンパクトな表にする。
- * 測定はフル記録 (窓ではなく全区間) で行う (周波数は周期が多いほど安定)。
- * 高さを一定に保つため **全 ch を常時表示**し、非表示中の行は薄く見せる。
+ * 表示中の全トレースの自動測定値 (LTspice の `.meas` 相当をまとめて出す表)。
+ * pp / 平均 / RMS / 周波数 / Duty を、記録全体ではなく**表示中の窓**で測る
+ * (ズームすればその区間の値になる)。
  */
 export const MeasurementTable = ({
   waveforms,
-  probes,
-  hidden,
+  traces,
+  win,
 }: {
   waveforms: Waveforms
-  probes: NodeProbe[]
-  hidden: ReadonlySet<string>
+  traces: readonly DrawTrace[]
+  win: { start: number; end: number }
 }): ReactElement | null => {
-  if (probes.length === 0) return null
+  if (traces.length === 0) return null
   return (
     <table className="measure-table">
       <thead>
         <tr>
           <th></th>
-          <th>Vpp</th>
-          <th>Vavg</th>
+          <th>pp</th>
+          <th>平均</th>
+          <th>RMS</th>
           <th>周波数</th>
           <th>Duty</th>
         </tr>
       </thead>
       <tbody>
-        {probes.map((p) => {
-          const m = measureSeries(waveforms.time, waveforms.nodeVoltages[p.nodeId])
+        {traces.map((t) => {
+          const m = measureSeries(waveforms.time, t.values)
+          const stats = intervalStats(waveforms.time, t.values, win.start, win.end)
+          const fmt = formatter(t)
           return (
-            <tr key={p.nodeId} className={hidden.has(p.nodeId) ? 'off' : undefined}>
+            <tr key={t.key}>
               <th scope="row">
-                <span className="wave-swatch" style={{ background: p.color }} />
-                {p.label}
+                <span className="wave-swatch" style={{ background: t.color }} />
+                {t.label}
               </th>
-              <td>{fmtV(m.vpp)}</td>
-              <td>{fmtV(m.vavg)}</td>
+              <td>{fmt(m.vpp)}</td>
+              <td>{fmt(stats.avg)}</td>
+              <td>{fmt(stats.rms)}</td>
               <td>{fmtFreq(m.freq)}</td>
               <td>{fmtDuty(m.duty)}</td>
             </tr>

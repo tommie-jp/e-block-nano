@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import { magnitudeSpectrum } from '../../core/simulation/spice/fft'
+import type { FftWindow } from '../../core/simulation/spice/fft'
 import { plotBox } from './geometry'
 import { niceTicks } from './ticks'
 
@@ -9,6 +10,8 @@ interface FftPlotProps {
   nodeId: string
   color: string
   label: string
+  /** 窓関数 (既定 Hann)。矩形は分解能重視、Hamming は側波が低い */
+  window?: FftWindow
 }
 
 const fmtHz = (f: number): string =>
@@ -23,9 +26,15 @@ export const FftPlot = ({
   nodeId,
   color,
   label,
+  window = 'hann',
 }: FftPlotProps): ReactElement => {
   const box = plotBox()
-  const { freqs, mags } = magnitudeSpectrum(waveforms.time, waveforms.nodeVoltages[nodeId] ?? [])
+  const { freqs, mags } = magnitudeSpectrum(
+    waveforms.time,
+    waveforms.nodeVoltages[nodeId] ?? [],
+    undefined,
+    window,
+  )
 
   if (freqs.length === 0) {
     return (

@@ -100,6 +100,13 @@ export const ScopeToolbar = ({
             <select value={fftId} onChange={(e) => c.setFftSel(e.target.value)}>
               {sourceOptions}
             </select>
+            <button
+              type="button"
+              onClick={c.cycleFftWindow}
+              title="FFT の窓関数を切り替える (Hann / Hamming / 矩形)"
+            >
+              窓: {c.fftWindow === 'hann' ? 'Hann' : c.fftWindow === 'hamming' ? 'Hamming' : '矩形'}
+            </button>
           </span>
         )}
       </div>

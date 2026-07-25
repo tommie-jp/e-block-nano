@@ -12,6 +12,7 @@ import {
   saveToLocal,
 } from '../io/boardStorage'
 import { createNgspiceSimulator } from '../io/ngspiceSimulator'
+import { loadScopeLayout, saveScopeLayout } from '../io/scopeStorage'
 import { deserializeBoard } from '../core/persistence/boardFile'
 import { getSample, SAMPLE_CIRCUITS } from '../fixtures/circuits/samples'
 import { BoardView } from './BoardView'
@@ -43,7 +44,10 @@ export const App = (): ReactElement => {
   // ライブオシロの表示内容 (ボードのプローブ操作もここを更新する)。
   // 編集操作と衝突しないよう、プローブはモード制
   const [probing, setProbing] = useState(false)
-  const [liveLayout, setLiveLayout] = useState<ScopeLayout>(createLayout)
+  // 前回の表示設定 (.plt 相当) があれば復元する
+  const [liveLayout, setLiveLayout] = useState<ScopeLayout>(
+    () => loadScopeLayout() ?? createLayout(),
+  )
   const ngspice = useMemo(() => createNgspiceSimulator(), [])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const mainRef = useRef<HTMLElement>(null)
@@ -172,6 +176,11 @@ export const App = (): ReactElement => {
       cancelled = true
     }
   }, [netlist, hasError, ngspiceOn, ngspice])
+
+  // 表示設定を保存する (次に開いたときに同じ測定を続けられるように)
+  useEffect(() => {
+    saveScopeLayout(liveLayout)
+  }, [liveLayout])
 
   // キーボード操作: R = 回転, C = スイッチ切替, Delete/Backspace = 削除
   useEffect(() => {

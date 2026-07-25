@@ -15,13 +15,23 @@ interface CursorsProps {
   scales: Scales
   cursor: CursorState
   onGrab: (id: CursorId, e: PointerEvent) => void
+  /**
+   * 吸着先のトレース (LTspice の Attach Cursor)。渡すと横カーソルの代わりに
+   * 「その時刻のトレース上の点」を丸で示す。
+   */
+  attached?: { readonly color: string; readonly vA: number; readonly vB: number } | null
 }
 
 /**
  * オシロのカーソル: ドラッグできる時間 (縦) / 電圧 (横) の線。
  * ドラッグ状態と座標変換は親 (WaveformChart) が持ち、ここは描画と掴みだけ。
  */
-export const Cursors = ({ scales, cursor, onGrab }: CursorsProps): ReactElement => {
+export const Cursors = ({
+  scales,
+  cursor,
+  onGrab,
+  attached,
+}: CursorsProps): ReactElement => {
   const { plot } = scales
 
   const timeCursor = (id: 'tA' | 'tB', t: number): ReactElement => {
@@ -64,12 +74,31 @@ export const Cursors = ({ scales, cursor, onGrab }: CursorsProps): ReactElement 
     )
   }
 
+  /** 吸着中: トレース上の読み取り点 */
+  const marker = (t: number, v: number, tag: string): ReactElement => (
+    <g key={`m${tag}`} className="cursor-marker">
+      <circle cx={scales.x(t)} cy={scales.y(v)} r={4} fill={attached?.color} />
+      <text x={scales.x(t) + 6} y={scales.y(v) - 6} className="cursor-tag">
+        {tag}
+      </text>
+    </g>
+  )
+
   return (
     <g className="cursors">
       {timeCursor('tA', cursor.tA)}
       {timeCursor('tB', cursor.tB)}
-      {voltCursor('vA', cursor.vA)}
-      {voltCursor('vB', cursor.vB)}
+      {attached ? (
+        <>
+          {marker(cursor.tA, attached.vA, 'A')}
+          {marker(cursor.tB, attached.vB, 'B')}
+        </>
+      ) : (
+        <>
+          {voltCursor('vA', cursor.vA)}
+          {voltCursor('vB', cursor.vB)}
+        </>
+      )}
     </g>
   )
 }

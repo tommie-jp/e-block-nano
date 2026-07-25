@@ -43,6 +43,22 @@ export const fft = (re: number[], im: number[]): void => {
   }
 }
 
+/** 窓関数。既定は Hann (漏れが少なく汎用) */
+export type FftWindow = 'hann' | 'hamming' | 'rect'
+
+/** 窓関数の係数 (i 番目 / 全 n 点) */
+export const windowCoeff = (kind: FftWindow, i: number, n: number): number => {
+  const phase = (2 * Math.PI * i) / (n - 1)
+  switch (kind) {
+    case 'hann':
+      return 0.5 - 0.5 * Math.cos(phase)
+    case 'hamming':
+      return 0.54 - 0.46 * Math.cos(phase)
+    case 'rect':
+      return 1
+  }
+}
+
 export interface Spectrum {
   /** 各ビンの周波数 [Hz] (0..Nyquist) */
   readonly freqs: number[]
@@ -52,13 +68,14 @@ export interface Spectrum {
 
 /**
  * 過渡波形 (非等間隔) の片側振幅スペクトルを返す純関数。
- * 記録全体を FFT_N 点へ等間隔リサンプルし、DC を除去、Hann 窓をかけて FFT する。
+ * 記録全体を FFT_N 点へ等間隔リサンプルし、DC を除去、窓 (既定 Hann) をかけて FFT する。
  * 発振周波数・高調波の確認用。データ不足なら空。
  */
 export const magnitudeSpectrum = (
   time: readonly number[],
   values: readonly number[],
   n: number = FFT_N,
+  window: FftWindow = 'hann',
 ): Spectrum => {
   const t0 = time[0] ?? 0
   const t1 = time.at(-1) ?? 0
@@ -71,10 +88,7 @@ export const magnitudeSpectrum = (
 
   const re: number[] = new Array(n)
   const im: number[] = new Array(n).fill(0)
-  for (let i = 0; i < n; i++) {
-    const hann = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1))
-    re[i] = (samples[i] - mean) * hann
-  }
+  for (let i = 0; i < n; i++) re[i] = (samples[i] - mean) * windowCoeff(window, i, n)
   fft(re, im)
 
   const fs = n / span // 実効サンプルレート [Hz]

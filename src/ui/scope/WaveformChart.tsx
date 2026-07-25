@@ -7,6 +7,7 @@ import { dominantOscillation, viewWindow } from '../waveProbes'
 import { exprKey } from '../../core/scope/traceExpr'
 import type { ExprSymbols } from '../../core/scope/parseExpr'
 import { AddTraceDialog } from './AddTraceDialog'
+import { intervalStats, readCursors } from './cursorReadout'
 import { Cursors } from './Cursors'
 import type { CursorId } from './Cursors'
 import { fmtHz, fmtT, fmtV } from './format'
@@ -93,6 +94,11 @@ export const WaveformChart = ({
   const svgRef = useRef<SVGSVGElement>(null)
   const c = useScopeControls()
   const hasData = waveforms != null && probes.length > 0
+
+  // 凡例 Shift+クリックでカーソルを吸着させるトレース (LTspice の Attach Cursor)
+  const [cursorTraceKey, setCursorTraceKey] = useState<string | null>(null)
+  // 凡例 Ctrl+クリックで平均・RMS を出すトレース
+  const [statsKey, setStatsKey] = useState<string | null>(null)
 
   // --- トレース追加 (式エディタ) ---
   const [addOpen, setAddOpen] = useState(false)
@@ -287,8 +293,21 @@ export const WaveformChart = ({
   }
 
   const time = waveforms?.time ?? []
-  const dt = Math.abs(c.cursor.tB - c.cursor.tA)
-  const dv = Math.abs(c.cursor.vB - c.cursor.vA)
+  // カーソル: 吸着先があればその上の値を読む。無ければ従来の縦横カーソル
+  const cursorTrace = drawTraces.find((t) => t.key === cursorTraceKey) ?? null
+  const reading = readCursors(time, cursorTrace, c.cursor.tA, c.cursor.tB)
+  const dt = reading?.dt ?? Math.abs(c.cursor.tB - c.cursor.tA)
+  const dv = reading?.dv ?? Math.abs(c.cursor.vB - c.cursor.vA)
+  // 平均・RMS: カーソルがあればその区間、無ければ表示中の窓全体
+  const statsTrace = drawTraces.find((t) => t.key === statsKey) ?? null
+  const stats = statsTrace
+    ? intervalStats(
+        time,
+        statsTrace.values,
+        c.cursorsOn ? c.cursor.tA : win.start,
+        c.cursorsOn ? c.cursor.tB : win.end,
+      )
+    : null
   const plotCx = (scales.plot.left + scales.plot.right) / 2
   const plotCy = (scales.plot.top + scales.plot.bottom) / 2
   // オーバーレイの色分け: 警告/失敗系は赤、準備中/計算中などは情報色
@@ -417,7 +436,20 @@ export const WaveformChart = ({
               i === 0 ? (
                 <>
                   {c.cursorsOn && cursorsUsable && (
-                    <Cursors scales={p.scales} cursor={c.cursor} onGrab={grab} />
+                    <Cursors
+                      scales={p.scales}
+                      cursor={c.cursor}
+                      onGrab={grab}
+                      attached={
+                        reading && cursorTrace
+                          ? {
+                              color: cursorTrace.color,
+                              vA: reading.vA,
+                              vB: reading.vB,
+                            }
+                          : null
+                      }
+                    />
                   )}
                   {statusOverlay}
                 </>
@@ -476,8 +508,16 @@ export const WaveformChart = ({
           <>
             {c.cursorsOn && cursorsUsable && (
               <span className="cursor-readout">
+                {cursorTrace ? `${cursorTrace.label}: ` : ''}
                 Δt = {fmtT(dt)}
-                {dt > 0 && <> / 1/Δt = {fmtHz(1 / dt)}</>} &nbsp; ΔV = {fmtV(dv)}
+                {dt > 0 && <> / 1/Δt = {fmtHz(1 / dt)}</>} &nbsp; Δ = {fmtV(dv)}
+                {reading?.slope != null && <> / 傾き {fmtV(reading.slope)}/s</>}
+              </span>
+            )}
+            {stats && statsTrace && (
+              <span className="math-readout">
+                {statsTrace.label}: 平均 {fmtV(stats.avg)} / RMS {fmtV(stats.rms)}
+                {c.cursorsOn ? ' (カーソル間)' : ' (表示区間)'}
               </span>
             )}
             {mathMeasure && (
@@ -501,6 +541,12 @@ export const WaveformChart = ({
       <ScopeLegend
         probes={probes}
         hidden={hidden}
+        onSelectCursorTrace={(key) =>
+          setCursorTraceKey((k) => (k === key ? null : key))
+        }
+        onSelectStatsTrace={(key) => setStatsKey((k) => (k === key ? null : key))}
+        cursorTraceKey={cursorTraceKey}
+        statsKey={statsKey}
         onToggle={(nodeId) =>
           onLayout((l) => {
             const t = l.traces.find(
@@ -522,7 +568,7 @@ export const WaveformChart = ({
       />
 
       {hasData && c.view === 'time' && (
-        <MeasurementTable waveforms={waveforms} probes={probes} hidden={hidden} />
+        <MeasurementTable waveforms={waveforms} traces={drawTraces} win={win} />
       )}
     </div>
   )
