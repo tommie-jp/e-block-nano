@@ -2,8 +2,7 @@ import { evalExpr, exprKey, unitOf } from '../../core/scope/traceExpr'
 import type { TraceExpr, Unit } from '../../core/scope/traceExpr'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import type { NodeProbe } from '../waveProbes'
-import type { MathNodes } from './mathTrace'
-import { CURRENT_COLORS, POWER_COLORS } from './palette'
+
 
 /**
  * 波形データから「描く系列」を作る純ロジック。値の作り方 (AC の DC 除去、
@@ -55,90 +54,87 @@ export const dcOffsets = (
   return m
 }
 
-export interface VoltageTraceInput {
+export interface DrawInput {
   readonly waveforms: Waveforms
-  /** 凡例で表示中のプローブ (この順で描く) */
-  readonly visible: readonly NodeProbe[]
+  /** nodeId → プローブ (色とラベル。ボード上の●と対応させる) */
+  readonly probes: readonly NodeProbe[]
+  /** blockId → 素子の表示名 (電流・電力の凡例用) */
+  readonly deviceLabels?: Readonly<Record<string, string>>
+  /** AC カップリング (電圧系だけ DC を抜く) */
   readonly ac: boolean
   readonly dc: ReadonlyMap<string, number>
-  readonly mathNodes?: MathNodes | null
-  readonly mathValues?: readonly number[] | null
 }
-
-/** 表示中のノード電圧 (＋差動 Math) を描画系列にする */
-export const buildVoltageTraces = ({
-  waveforms,
-  visible,
-  ac,
-  dc,
-  mathNodes,
-  mathValues,
-}: VoltageTraceInput): DrawTrace[] => {
-  const detrend = (id: string, raw: readonly number[]): number[] =>
-    ac ? raw.map((v) => v - (dc.get(id) ?? meanOf(raw))) : [...raw]
-
-  const traces: DrawTrace[] = visible.map((p) => ({
-    expr: { kind: 'v', node: p.nodeId },
-    key: exprKey({ kind: 'v', node: p.nodeId }),
-    label: p.label,
-    color: p.color,
-    constant: p.constant,
-    values: detrend(p.nodeId, waveforms.nodeVoltages[p.nodeId] ?? []),
-  }))
-
-  if (mathNodes && mathValues) {
-    const expr: TraceExpr = { kind: 'vdiff', a: mathNodes.a, b: mathNodes.b }
-    traces.push({
-      expr,
-      key: exprKey(expr),
-      label: mathNodes.label,
-      color: MATH_COLOR,
-      constant: false,
-      values: ac ? mathValues.map((v) => v - meanOf(mathValues)) : [...mathValues],
-    })
-  }
-  return traces
-}
-
-/** 素子電流を描画系列にする。キーは `i:` 前置でノード ID と衝突させない */
-export const buildCurrentTraces = (
-  currents: Readonly<Record<string, readonly number[]>>,
-  labels: Readonly<Record<string, string>> = {},
-): DrawTrace[] =>
-  Object.keys(currents).map((id, i) => ({
-    expr: { kind: 'i', block: id },
-    key: exprKey({ kind: 'i', block: id }),
-    label: labels[id] ?? id,
-    color: CURRENT_COLORS[i % CURRENT_COLORS.length],
-    constant: false,
-    values: [...currents[id]],
-  }))
 
 /**
- * 電力トレース。式 (P=(V(a)−V(b))·I) を波形上で評価する。データが揃っていない
- * 素子は黙って飛ばす (プローブを当てた直後や、電流が出ない素子)。
+ * レイアウトのトレース 1 本を描画系列にする。データが無ければ null
+ * (プローブを当てた直後や、電流の出ない素子)。
+ *
+ * 色は電圧だけプローブ (ボードの●と同色) から取り、電流・電力はレイアウトが
+ * 単位ごとのパレットで持っている色を使う。
  */
-export const buildPowerTraces = (
-  exprs: readonly TraceExpr[],
-  waveforms: Waveforms,
-  labels: Readonly<Record<string, string>> = {},
-): DrawTrace[] => {
-  const out: DrawTrace[] = []
-  for (const expr of exprs) {
-    if (expr.kind !== 'p') continue
-    const values = evalExpr(expr, waveforms)
-    if (!values) continue
-    out.push({
-      expr,
-      key: exprKey(expr),
-      label: `${labels[expr.block] ?? expr.block} 電力`,
-      color: POWER_COLORS[out.length % POWER_COLORS.length],
-      constant: false,
-      values,
-    })
+export const buildDrawTrace = (
+  trace: { readonly expr: TraceExpr; readonly color: string },
+  { waveforms, probes, deviceLabels = {}, ac, dc }: DrawInput,
+): DrawTrace | null => {
+  const expr = trace.expr
+  const values = evalExpr(expr, waveforms)
+  if (!values) return null
+  const key = exprKey(expr)
+  const device = (id: string): string => deviceLabels[id] ?? id
+
+  switch (expr.kind) {
+    case 'v': {
+      const probe = probes.find((p) => p.nodeId === expr.node)
+      const offset = ac ? (dc.get(expr.node) ?? meanOf(values)) : 0
+      return {
+        expr,
+        key,
+        label: probe?.label ?? expr.node,
+        color: probe?.color ?? trace.color,
+        constant: probe?.constant ?? false,
+        values: offset ? values.map((v) => v - offset) : values,
+      }
+    }
+    case 'vdiff': {
+      const offset = ac ? meanOf(values) : 0
+      return {
+        expr,
+        key,
+        label: 'M: 両端電圧',
+        color: MATH_COLOR,
+        constant: false,
+        values: offset ? values.map((v) => v - offset) : values,
+      }
+    }
+    case 'i':
+      return {
+        expr,
+        key,
+        label: device(expr.block),
+        color: trace.color,
+        constant: false,
+        values,
+      }
+    case 'p':
+      return {
+        expr,
+        key,
+        label: `${device(expr.block)} 電力`,
+        color: trace.color,
+        constant: false,
+        values,
+      }
   }
-  return out
 }
+
+/** レイアウトのトレース列 → 描画系列 (データの無いものは落とす) */
+export const buildDrawTraces = (
+  traces: readonly { readonly expr: TraceExpr; readonly color: string }[],
+  input: DrawInput,
+): DrawTrace[] =>
+  traces
+    .map((t) => buildDrawTrace(t, input))
+    .filter((t): t is DrawTrace => t !== null)
 
 /**
  * 系列群のレンジ。0 を必ず含めて基準線を出し、フラットな退化ケースは

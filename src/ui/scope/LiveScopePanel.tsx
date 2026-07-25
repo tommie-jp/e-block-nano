@@ -8,9 +8,7 @@ import { createScopeStream } from '../../io/scopeStreamEngine'
 import { selectProbes } from '../waveProbes'
 import { createLiveBuffer } from './liveBuffer'
 import type { LiveCurrents } from './liveBuffer'
-import { powerExpr } from '../../core/scope/elementNodes'
-import { diffNodes, probedCurrents, probedPowers } from './probeTraces'
-import type { ProbeTrace } from './probeTraces'
+import type { ScopeLayout } from './panes'
 import { WaveformChart } from './WaveformChart'
 
 /**
@@ -33,9 +31,6 @@ const SW_CLOSED_OHMS = 0.001 // スイッチ閉(serialize.ts と一致)
 const SW_OPEN_OHMS = 1e9 // スイッチ開
 // 描画は 60fps だが、ボード上の電流表示は目で追える程度に間引く
 const BOARD_CURRENTS_INTERVAL_MS = 100
-// 既定値を毎レンダー作らない (子の memo 依存が無駄に変わるため)
-const NO_HIDDEN: ReadonlySet<string> = new Set()
-const NO_TRACES: readonly ProbeTrace[] = []
 
 const KIND_LABEL: Record<DeviceKind, string> = {
   battery: '電池',
@@ -52,12 +47,9 @@ interface LiveScopePanelProps {
   title?: string
   /** ボードで選択中の素子。電流トレースを強調する */
   selectedBlockId?: string | null
-  /** ボードから当てたプローブ (電流・差動)。電圧は既定で全ノード表示 */
-  traces?: readonly ProbeTrace[]
-  /** 表示を消したノード (凡例トグル / 接点プローブ) */
-  hidden?: ReadonlySet<string>
-  onToggleHidden?: (nodeId: string) => void
-  onToggleTrace?: (trace: ProbeTrace) => void
+  /** 何をどのペインに映すか (ボードのプローブ操作もここを更新する) */
+  layout: ScopeLayout
+  onLayout: (update: (l: ScopeLayout) => ScopeLayout) => void
   /**
    * 走っている素子電流の瞬時値 (blockId → A)。ボード上のブロックに
    * 「いま流れている電流」を出すために親へ流す。停止中・未起動は null。
@@ -69,10 +61,8 @@ export const LiveScopePanel = ({
   netlist,
   title,
   selectedBlockId,
-  traces = NO_TRACES,
-  hidden = NO_HIDDEN,
-  onToggleHidden,
-  onToggleTrace,
+  layout,
+  onLayout,
   onLiveCurrents,
 }: LiveScopePanelProps): ReactElement => {
   const [running, setRunning] = useState(false)
@@ -170,21 +160,6 @@ export const LiveScopePanel = ({
   }
 
   const probes = useMemo(() => (waveforms ? selectProbes(waveforms) : []), [waveforms])
-  // 差動プローブ (接点 → 接点のドラッグ) を白い Math トレースで重ねる
-  const mathNodes = useMemo(() => diffNodes(traces), [traces])
-  // 電流は当てた素子だけ (LTspice と同じくプローブで選ぶ)
-  const currents = useMemo(
-    () => probedCurrents(traces, waveforms?.elementCurrents ?? {}),
-    [traces, waveforms],
-  )
-  // 電力 (Alt+クリック) は式にして渡し、評価はオシロ側に任せる
-  const powerExprs = useMemo(
-    () =>
-      probedPowers(traces)
-        .map((blockId) => powerExpr(netlist, blockId))
-        .filter((e) => e !== null),
-    [traces, netlist],
-  )
 
   const resistors = netlist.elements.filter((e) => e.device.kind === 'resistor')
   const latest = bufRef.current.latestTime()
@@ -218,9 +193,8 @@ export const LiveScopePanel = ({
           </button>
         ))}
         <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.75 }}>
-          {traces.length === 0
-            ? 'ボードの「プローブ」で 接点=電圧 / 素子=電流 / 接点→接点=差動'
-            : `プローブ ${traces.length} 本 (凡例クリックで外す)`}
+          ボードの「プローブ」で 接点=電圧 / 素子=電流 / Alt+素子=電力 /
+          接点→接点=差動
         </span>
       </div>
 
@@ -268,19 +242,10 @@ export const LiveScopePanel = ({
       <WaveformChart
         waveforms={waveforms}
         probes={probes}
-        hidden={hidden}
-        onToggle={(nodeId) => onToggleHidden?.(nodeId)}
+        layout={layout}
+        onLayout={onLayout}
+        deviceLabels={deviceLabels}
         status={status}
-        mathNodes={mathNodes}
-        currents={currents}
-        powerExprs={powerExprs}
-        currentLabels={deviceLabels}
-        onRemoveTrace={(expr) => {
-          if (expr.kind === 'i') onToggleTrace?.({ kind: 'current', blockId: expr.block })
-          else if (expr.kind === 'p') onToggleTrace?.({ kind: 'power', blockId: expr.block })
-          else if (expr.kind === 'vdiff')
-            onToggleTrace?.({ kind: 'diff', a: expr.a, b: expr.b })
-        }}
         selectedBlockId={selectedBlockId}
         title={title}
       />

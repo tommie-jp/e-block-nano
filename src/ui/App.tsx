@@ -21,9 +21,11 @@ import type { NodeProbe } from './waveProbes'
 import { WaveformPanel } from './WaveformPanel'
 import type { LiveCurrents } from './scope/liveBuffer'
 import { LiveScopePanel } from './scope/LiveScopePanel'
+import { powerExpr } from '../core/scope/elementNodes'
+import type { TraceExpr } from '../core/scope/traceExpr'
 import type { ProbePick } from './scope/probePick'
-import { toggleHidden, toggleTrace } from './scope/probeTraces'
-import type { ProbeTrace } from './scope/probeTraces'
+import { createLayout, toggleTraceExpr, toggleVisibleExpr } from './scope/panes'
+import type { ScopeLayout } from './scope/panes'
 
 const errorMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e)
@@ -38,10 +40,10 @@ export const App = (): ReactElement => {
   const [waveProbes, setWaveProbes] = useState<NodeProbe[]>([])
   const [ngspiceOn, setNgspiceOn] = useState(true)
   const [simulating, setSimulating] = useState(false)
-  // ライブオシロのプローブ (ボードから当てる)。編集操作と衝突しないようモード制
+  // ライブオシロの表示内容 (ボードのプローブ操作もここを更新する)。
+  // 編集操作と衝突しないよう、プローブはモード制
   const [probing, setProbing] = useState(false)
-  const [probeTraces, setProbeTraces] = useState<readonly ProbeTrace[]>([])
-  const [hiddenNodes, setHiddenNodes] = useState<ReadonlySet<string>>(new Set())
+  const [liveLayout, setLiveLayout] = useState<ScopeLayout>(createLayout)
   const ngspice = useMemo(() => createNgspiceSimulator(), [])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const mainRef = useRef<HTMLElement>(null)
@@ -117,14 +119,18 @@ export const App = (): ReactElement => {
   // 接点 = 電圧トレースの表示トグル、素子 = 電流 (Alt なら電力) の追加/削除
   const handleProbe = (pick: ProbePick): void => {
     if (pick.kind === 'node') {
-      setHiddenNodes((h) => toggleHidden(h, pick.nodeId))
+      setLiveLayout((l) => toggleVisibleExpr(l, { kind: 'v', node: pick.nodeId }))
       return
     }
-    setProbeTraces((t) => toggleTrace(t, { kind: pick.kind, blockId: pick.blockId }))
+    const expr: TraceExpr | null =
+      pick.kind === 'current'
+        ? { kind: 'i', block: pick.blockId }
+        : powerExpr(netlist, pick.blockId)
+    if (expr) setLiveLayout((l) => toggleTraceExpr(l, expr))
   }
 
   const handleProbeDiff = (pair: { a: string; b: string }): void =>
-    setProbeTraces((t) => toggleTrace(t, { kind: 'diff', ...pair }))
+    setLiveLayout((l) => toggleTraceExpr(l, { kind: 'vdiff', ...pair }))
 
   const netlist = useMemo(() => buildNetlist(editor.board), [editor.board])
   const findings = useMemo(() => lintCircuit(netlist), [netlist])
@@ -360,12 +366,8 @@ export const App = (): ReactElement => {
           netlist={netlist}
           title="ライブオシロ (ngspice 連続)"
           selectedBlockId={editor.selectedBlockId}
-          traces={probeTraces}
-          hidden={hiddenNodes}
-          onToggleHidden={(nodeId) =>
-            setHiddenNodes((h) => toggleHidden(h, nodeId))
-          }
-          onToggleTrace={(t) => setProbeTraces((list) => toggleTrace(list, t))}
+          layout={liveLayout}
+          onLayout={setLiveLayout}
           onLiveCurrents={setLiveCurrents}
         />
       </div>

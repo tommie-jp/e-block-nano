@@ -1,39 +1,32 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { PointerEvent, ReactElement } from 'react'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import { measureSeries } from '../../core/simulation/spice/measure'
 import type { NodeProbe } from '../waveProbes'
 import { dominantOscillation, viewWindow } from '../waveProbes'
 import { exprKey } from '../../core/scope/traceExpr'
-import type { TraceExpr } from '../../core/scope/traceExpr'
 import { Cursors } from './Cursors'
 import type { CursorId } from './Cursors'
 import { fmtHz, fmtT, fmtV } from './format'
 import { CHART, DEFAULT_WINDOW, DEFAULT_Y_RANGE } from './geometry'
 import { FftPlot } from './FftPlot'
-import type { MathNodes } from './mathTrace'
-import { differenceSeries } from './mathTrace'
 import { MeasurementTable } from './MeasurementTable'
 import { paneHeight, paneScales, panesForRender } from './paneLayout'
 import {
   addPane,
-  createLayout,
   moveTrace,
   removePane,
+  removeTrace,
   setPaneYRange,
-  syncLayout,
+  syncNodes,
+  toggleVisible,
 } from './panes'
+import type { ScopeLayout } from './panes'
 import { ScopeLegend } from './ScopeLegend'
 import { ScopePane } from './ScopePane'
 import { ScopeToolbar } from './ScopeToolbar'
 import { sweepHeadTime } from './sweep'
-import {
-  buildCurrentTraces,
-  buildPowerTraces,
-  buildVoltageTraces,
-  dcOffsets,
-  rangeOf,
-} from './traceSeries'
+import { buildDrawTraces, dcOffsets, rangeOf } from './traceSeries'
 import { triggerTime } from './trigger'
 import { useScopeControls } from './useScopeControls'
 import { useSweep } from './useSweep'
@@ -51,28 +44,20 @@ import { XYPlot } from './XYPlot'
 
 interface WaveformChartProps {
   waveforms: Waveforms | null
+  /** 表示できるノード (色・ラベル・ほぼ一定かどうか)。ボードの●と対応する */
   probes: NodeProbe[]
-  hidden: ReadonlySet<string>
-  onToggle: (nodeId: string) => void
+  /** 何をどのペインに映すか。オシロ画面の持ち主 (App / WaveformPanel) が持つ */
+  layout: ScopeLayout
+  onLayout: (update: (l: ScopeLayout) => ScopeLayout) => void
+  /** blockId → 素子の表示名 (電流・電力の凡例) */
+  deviceLabels?: Readonly<Record<string, string>>
   status?: string | null
   /** 計算中の推定進捗 [%] (0-100)。null なら進捗バーを出さない */
   progress?: number | null
-  mathNodes?: MathNodes | null
   reference?: Waveforms | null
   onSaveReference?: () => void
   onClearReference?: () => void
-  /**
-   * blockId → 電流系列[A]。渡すと同じ枠内に電流トレースを重ねる(overlay は右 mA 軸に
-   * 破線、段組みは 1 レーンずつ)。ライブ(LiveScopePanel)専用。
-   */
-  currents?: Readonly<Record<string, readonly number[]>>
-  /** 描く電力の式 (Alt+クリックで当てたもの)。評価はここで行う */
-  powerExprs?: readonly TraceExpr[]
-  /** blockId → 電流/電力トレースの表示名 */
-  currentLabels?: Readonly<Record<string, string>>
-  /** 凡例クリックでそのプローブを外す (渡さなければ凡例は表示のみ) */
-  onRemoveTrace?: (expr: TraceExpr) => void
-  /** ボードで選択中の素子。電流トレースを太線＋他を薄くして強調 */
+  /** ボードで選択中の素子。電流/電力トレースを太線＋他を薄くして強調 */
   selectedBlockId?: string | null
   /** このオシロ画面の見出し (例: "オシロ 1")。複数画面のときに表示 */
   title?: string
@@ -84,18 +69,14 @@ interface WaveformChartProps {
 export const WaveformChart = ({
   waveforms,
   probes,
-  hidden,
-  onToggle,
+  layout,
+  onLayout,
+  deviceLabels,
   status,
   progress,
-  mathNodes,
   reference,
   onSaveReference,
   onClearReference,
-  currents,
-  powerExprs,
-  currentLabels,
-  onRemoveTrace,
   selectedBlockId,
   title,
   canRemove = false,
@@ -105,9 +86,30 @@ export const WaveformChart = ({
   const c = useScopeControls()
   const hasData = waveforms != null && probes.length > 0
 
+  // 回路のノード集合にレイアウトを追従させる (新しいノードは自動で 1 本増える)
+  const nodeKey = probes.map((p) => p.nodeId).join('|')
+  useEffect(() => {
+    onLayout((l) => syncNodes(l, nodeKey ? nodeKey.split('|') : []))
+    // onLayout は毎レンダー作り直される呼び出し側があるので依存に入れない
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeKey])
+
+  // 凡例・XY/FFT のソース候補は「電圧トレースとして見えているノード」
+  const shownNodes = useMemo(() => {
+    const ids = new Set(
+      layout.traces
+        .filter((t) => t.expr.kind === 'v' && t.visible)
+        .map((t) => (t.expr.kind === 'v' ? t.expr.node : '')),
+    )
+    return ids
+  }, [layout])
+  const hidden = useMemo(
+    () => new Set(probes.map((p) => p.nodeId).filter((id) => !shownNodes.has(id))),
+    [probes, shownNodes],
+  )
   const visible = useMemo(
-    () => probes.filter((p) => !hidden.has(p.nodeId)),
-    [probes, hidden],
+    () => probes.filter((p) => shownNodes.has(p.nodeId)),
+    [probes, shownNodes],
   )
   const visibleIds = visible.map((p) => p.nodeId)
   // 既定ソースは発振ノード (非 constant) を優先。レール(N1)を選ばないように
@@ -152,47 +154,25 @@ export const WaveformChart = ({
   const phase = useSweep(sweeping, c.sweepSec)
   const tHead = sweepHeadTime(win, phase)
 
-  const mathValues = useMemo(() => {
-    if (!waveforms || !mathNodes) return null
-    const a = waveforms.nodeVoltages[mathNodes.a]
-    const b = waveforms.nodeVoltages[mathNodes.b]
-    return a && b ? differenceSeries(a, b) : null
-  }, [waveforms, mathNodes])
-
-  const traces = useMemo(
+  const drawTraces = useMemo(
     () =>
       waveforms
-        ? buildVoltageTraces({ waveforms, visible, ac: c.ac, dc, mathNodes, mathValues })
+        ? buildDrawTraces(layout.traces.filter((t) => t.visible), {
+            waveforms,
+            probes,
+            deviceLabels,
+            ac: c.ac,
+            dc,
+          })
         : [],
-    [waveforms, visible, c.ac, dc, mathNodes, mathValues],
-  )
-  const currentTraces = useMemo(
-    () => (currents ? buildCurrentTraces(currents, currentLabels) : []),
-    [currents, currentLabels],
-  )
-  const powerTraces = useMemo(
-    () =>
-      waveforms && powerExprs?.length
-        ? buildPowerTraces(powerExprs, waveforms, currentLabels)
-        : [],
-    [waveforms, powerExprs, currentLabels],
-  )
-  const drawTraces = useMemo(
-    () => (hasData ? [...traces, ...currentTraces, ...powerTraces] : []),
-    [hasData, traces, currentTraces, powerTraces],
+    [waveforms, layout, probes, deviceLabels, c.ac, dc],
   )
 
   // --- ペイン (LTspice のプロットペイン)。X 軸は共通、Y 軸はペインごと ---
-  const [layout, setLayout] = useState(createLayout)
-  const synced = useMemo(
-    () => syncLayout(layout, drawTraces.map((t) => t.expr)),
-    [layout, drawTraces],
-  )
-  if (synced !== layout) setLayout(synced)
-  const height = paneHeight(synced.panes.length)
+  const height = paneHeight(layout.panes.length)
   const panes = useMemo(
-    () => panesForRender(synced, drawTraces, win, height, c.gain, DEFAULT_Y_RANGE),
-    [synced, drawTraces, win, height, c.gain],
+    () => panesForRender(layout, drawTraces, win, height, c.gain, DEFAULT_Y_RANGE),
+    [layout, drawTraces, win, height, c.gain],
   )
   // カーソル・XY・FFT は先頭ペインの座標系で扱う
   const scales = panes[0]?.scales ?? paneScales(win, DEFAULT_Y_RANGE, height)
@@ -239,8 +219,10 @@ export const WaveformChart = ({
       status.includes('できません') ||
       status.includes('エラー'))
   const hasProgress = !!status && !statusIsError && progress != null
+  // 差動 (Math) トレースがあれば、その両端電圧の測定値を出す
+  const mathTrace = drawTraces.find((t) => t.expr.kind === 'vdiff')
   const mathMeasure =
-    mathValues && waveforms ? measureSeries(waveforms.time, mathValues) : null
+    mathTrace && waveforms ? measureSeries(waveforms.time, mathTrace.values) : null
   const labelOf = (id: string): string =>
     probes.find((p) => p.nodeId === id)?.label ?? id
   const colorOf = (id: string): string =>
@@ -324,9 +306,9 @@ export const WaveformChart = ({
             reference={hasData ? reference : null}
             selectedBlockId={selectedBlockId}
             canRemove={panes.length > 1}
-            onRemove={() => setLayout((l) => removePane(l, p.pane.id))}
+            onRemove={() => onLayout((l) => removePane(l, p.pane.id))}
             onMoveTrace={(key) =>
-              setLayout((l) => {
+              onLayout((l) => {
                 const trace = l.traces.find((t) => exprKey(t.expr) === key)
                 if (!trace) return l
                 const order = l.panes.findIndex((x) => x.id === p.pane.id)
@@ -335,7 +317,7 @@ export const WaveformChart = ({
               })
             }
             onSetYRange={(range) =>
-              setLayout((l) => setPaneYRange(l, p.pane.id, range))
+              onLayout((l) => setPaneYRange(l, p.pane.id, range))
             }
             svgRef={i === 0 ? svgRef : undefined}
             onPointerMove={i === 0 ? onMove : undefined}
@@ -383,7 +365,7 @@ export const WaveformChart = ({
         controls={c}
         hasData={hasData}
         cursorsUsable={cursorsUsable}
-        onAddPane={() => setLayout(addPane)}
+        onAddPane={() => onLayout(addPane)}
         onToggleCursors={() =>
           c.cursorsOn ? c.disableCursors() : c.enableCursors(win, scales.yRange)
         }
@@ -414,9 +396,23 @@ export const WaveformChart = ({
       <ScopeLegend
         probes={probes}
         hidden={hidden}
-        onToggle={onToggle}
-        currentTraces={[...currentTraces, ...powerTraces]}
-        onRemoveTrace={onRemoveTrace}
+        onToggle={(nodeId) =>
+          onLayout((l) => {
+            const t = l.traces.find(
+              (x) => x.expr.kind === 'v' && x.expr.node === nodeId,
+            )
+            return t ? toggleVisible(l, t.id) : l
+          })
+        }
+        currentTraces={drawTraces.filter(
+          (t) => t.expr.kind === 'i' || t.expr.kind === 'p',
+        )}
+        onRemoveTrace={(expr) =>
+          onLayout((l) => {
+            const t = l.traces.find((x) => exprKey(x.expr) === exprKey(expr))
+            return t ? removeTrace(l, t.id) : l
+          })
+        }
         selectedBlockId={selectedBlockId}
       />
 

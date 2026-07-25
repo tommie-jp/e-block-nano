@@ -8,13 +8,15 @@ import type { NodeProbe } from './waveProbes'
 import { dominantOscillation, selectProbes } from './waveProbes'
 import { WaveformChart } from './scope/WaveformChart'
 import { selectedMathNodes } from './scope/mathTrace'
+import { setSelectionDiff } from './scope/panes'
+import type { ScopeLayout } from './scope/panes'
 import type { Scope } from './scope/scopes'
 import {
   appendScope,
   makeScope,
   removeScope,
   unionVisibleIds,
-  withHiddenToggled,
+  withLayout,
   withReference,
 } from './scope/scopes'
 
@@ -36,7 +38,7 @@ const AUDIO_TARGET_HZ = 330
 
 /**
  * 過渡解析(.tran)を on-demand 実行し、ノード電圧の時系列を折れ線表示する。
- * ngspice を裏に持つ (CircuitJS のライブビューとは別の、定量の波形ビュー)。
+ * ngspice を裏に持つ (連続実行の `ui/scope/LiveScopePanel` とは別の、on-demand の波形ビュー)。
  */
 export const WaveformPanel = ({
   netlist,
@@ -66,6 +68,13 @@ export const WaveformPanel = ({
     [netlist, selectedBlockId],
   )
 
+  // 選択素子が変わったら、各画面の Math (両端電圧) を差し替える
+  useEffect(() => {
+    setScopes((list) =>
+      list.map((s) => withLayout(s, (l) => setSelectionDiff(l, mathNodes))),
+    )
+  }, [mathNodes])
+
   const analysis = useMemo(
     () => ({ kind: 'tran' as const, step: TRAN_STEP, stop: TRAN_STOP }),
     [],
@@ -87,9 +96,12 @@ export const WaveformPanel = ({
   useEffect(() => () => onProbes?.([]), [onProbes])
 
   // --- オシロ画面の操作 (すべて immutable に scopes を更新) ---
-  const toggleHidden = (scopeId: string, nodeId: string): void =>
+  const updateLayout = (
+    scopeId: string,
+    update: (l: ScopeLayout) => ScopeLayout,
+  ): void =>
     setScopes((list) =>
-      list.map((s) => (s.id === scopeId ? withHiddenToggled(s, nodeId) : s)),
+      list.map((s) => (s.id === scopeId ? withLayout(s, update) : s)),
     )
   const saveReference = (scopeId: string): void =>
     setScopes((list) =>
@@ -242,9 +254,8 @@ export const WaveformPanel = ({
               onRemove={() => removeScopeById(s.id)}
               waveforms={active}
               probes={probes}
-              hidden={new Set(s.hidden)}
-              onToggle={(nodeId) => toggleHidden(s.id, nodeId)}
-              mathNodes={mathNodes}
+              layout={s.layout}
+              onLayout={(update) => updateLayout(s.id, update)}
               reference={s.reference}
               onSaveReference={() => saveReference(s.id)}
               onClearReference={() => clearReference(s.id)}

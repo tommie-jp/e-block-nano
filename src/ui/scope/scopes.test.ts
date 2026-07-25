@@ -1,20 +1,35 @@
 import { describe, expect, it } from 'vitest'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
+import { syncNodes, toggleVisibleExpr } from './panes'
 import {
   appendScope,
   makeScope,
   removeScope,
   unionVisibleIds,
-  withHiddenToggled,
+  withLayout,
   withReference,
 } from './scopes'
+
+/** 指定ノードを表示中にしたスコープ (v トレースを持つ) */
+const scopeShowing = (id: string, nodeIds: string[]) =>
+  withLayout(makeScope(id), (l) => syncNodes(l, nodeIds))
+
+/** そのノードの表示を消したスコープ */
+const scopeHiding = (id: string, nodeIds: string[], hide: string) =>
+  withLayout(scopeShowing(id, nodeIds), (l) =>
+    toggleVisibleExpr(l, { kind: 'v', node: hide }),
+  )
 
 const wf: Waveforms = { time: [0, 1], nodeVoltages: { N1: [1, 1] } }
 
 describe('makeScope', () => {
-  it('starts with all channels shown and no reference', () => {
+  it('starts with an empty layout and no reference', () => {
     const s = makeScope('scope-1')
-    expect(s).toEqual({ id: 'scope-1', hidden: [], reference: null })
+
+    expect(s.id).toBe('scope-1')
+    expect(s.layout.traces).toEqual([])
+    expect(s.layout.panes).toHaveLength(1)
+    expect(s.reference).toBeNull()
   })
 })
 
@@ -32,15 +47,14 @@ describe('appendScope / removeScope', () => {
   })
 })
 
-describe('withHiddenToggled', () => {
-  it('hides then shows a node, returning new objects each time', () => {
-    const s0 = makeScope('a')
-    const s1 = withHiddenToggled(s0, 'N2')
-    expect(s1.hidden).toEqual(['N2'])
-    expect(s0.hidden).toEqual([]) // immutable
+describe('withLayout', () => {
+  it('updates the layout immutably', () => {
+    const s0 = scopeShowing('a', ['N1'])
 
-    const s2 = withHiddenToggled(s1, 'N2')
-    expect(s2.hidden).toEqual([])
+    const s1 = withLayout(s0, (l) => toggleVisibleExpr(l, { kind: 'v', node: 'N1' }))
+
+    expect(s1.layout.traces[0].visible).toBe(false)
+    expect(s0.layout.traces[0].visible).toBe(true) // immutable
   })
 })
 
@@ -58,14 +72,16 @@ describe('unionVisibleIds', () => {
   const allIds = ['N1', 'N2', 'N3']
 
   it('returns ids visible in at least one scope, in allIds order', () => {
-    const a = withHiddenToggled(makeScope('a'), 'N3') // shows N1,N2
-    const b = withHiddenToggled(makeScope('b'), 'N1') // shows N2,N3
+    const a = scopeHiding('a', allIds, 'N3') // shows N1,N2
+    const b = scopeHiding('b', allIds, 'N1') // shows N2,N3
+
     expect(unionVisibleIds([a, b], allIds)).toEqual(['N1', 'N2', 'N3'])
   })
 
   it('drops a node only when every scope hides it', () => {
-    const a = withHiddenToggled(makeScope('a'), 'N2') // shows N1,N3
-    const b = withHiddenToggled(makeScope('b'), 'N2') // shows N1,N3
+    const a = scopeHiding('a', allIds, 'N2')
+    const b = scopeHiding('b', allIds, 'N2')
+
     expect(unionVisibleIds([a, b], allIds)).toEqual(['N1', 'N3'])
   })
 

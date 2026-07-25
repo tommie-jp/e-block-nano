@@ -11,6 +11,8 @@ import {
   removePane,
   removeTrace,
   syncLayout,
+  syncNodes,
+  toggleVisibleExpr,
   toggleTraceExpr,
   toggleVisible,
 } from './panes'
@@ -181,5 +183,69 @@ describe('syncLayout', () => {
     const l = syncLayout(createLayout(), [V1])
 
     expect(syncLayout(l, [V1])).toBe(l)
+  })
+})
+
+describe('syncNodes', () => {
+  test('shows a newly appeared node as a voltage trace', () => {
+    const l = syncNodes(createLayout(), ['n1', 'n2'])
+
+    expect(l.traces.map((t) => t.expr)).toEqual([
+      { kind: 'v', node: 'n1' },
+      { kind: 'v', node: 'n2' },
+    ])
+  })
+
+  test('drops traces for a node that vanished (block deleted)', () => {
+    const before = syncNodes(createLayout(), ['n1', 'n2'])
+
+    expect(syncNodes(before, ['n1']).traces.map((t) => t.expr)).toEqual([
+      { kind: 'v', node: 'n1' },
+    ])
+  })
+
+  test('drops a differential when one of its nodes is gone', () => {
+    const withDiff = addTrace(syncNodes(createLayout(), ['n1', 'n2']), {
+      kind: 'vdiff',
+      a: 'n1',
+      b: 'n2',
+    })
+
+    const after = syncNodes(withDiff, ['n1'])
+
+    expect(after.traces.every((t) => t.expr.kind !== 'vdiff')).toBe(true)
+  })
+
+  test('does not resurrect a trace the user removed', () => {
+    const shown = syncNodes(createLayout(), ['n1', 'n2'])
+    const removed = removeTrace(shown, shown.traces[1].id)
+
+    expect(syncNodes(removed, ['n1', 'n2']).traces).toHaveLength(1)
+  })
+
+  test('leaves an unchanged node set alone (same object back)', () => {
+    const l = syncNodes(createLayout(), ['n1'])
+
+    expect(syncNodes(l, ['n1'])).toBe(l)
+  })
+
+  test('keeps current probes across node changes', () => {
+    const l = addTrace(syncNodes(createLayout(), ['n1']), I1)
+
+    expect(syncNodes(l, ['n1', 'n2']).traces.some((t) => t.expr.kind === 'i')).toBe(true)
+  })
+})
+
+describe('toggleVisibleExpr', () => {
+  test('hides and shows the trace of that expression', () => {
+    const shown = syncNodes(createLayout(), ['n1'])
+
+    const hidden = toggleVisibleExpr(shown, V1)
+    expect(hidden.traces[0].visible).toBe(false)
+    expect(toggleVisibleExpr(hidden, V1).traces[0].visible).toBe(true)
+  })
+
+  test('adds the trace when the expression is not shown at all', () => {
+    expect(toggleVisibleExpr(createLayout(), V1).traces).toHaveLength(1)
   })
 })

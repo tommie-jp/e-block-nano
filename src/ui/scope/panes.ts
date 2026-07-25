@@ -31,6 +31,8 @@ export interface ScopeLayout {
   readonly traces: readonly Trace[]
   /** id 採番用の連番 (Date/Math.random を使わず決定的にするため) */
   readonly seq: number
+  /** 既に一度出したことのあるノード。新しく現れたノードだけ自動で足すために持つ */
+  readonly knownNodes: readonly string[]
 }
 
 /** 1 ペインが持てる単位の上限 (左軸・右軸) */
@@ -40,6 +42,7 @@ export const createLayout = (): ScopeLayout => ({
   panes: [{ id: 'pane-1', yMode: 'auto' }],
   traces: [],
   seq: 1,
+  knownNodes: [],
 })
 
 /** そのペインに属するトレース (追加順) */
@@ -106,6 +109,7 @@ export const addTrace = (
       }
 
   return {
+    ...l,
     panes: base.panes,
     seq: base.seq,
     traces: [
@@ -178,6 +182,47 @@ export const moveTrace = (
   }
 }
 
+/** 式でトレースを引く (プローブ操作は式が手掛かりなので) */
+const findByExpr = (l: ScopeLayout, expr: TraceExpr): Trace | undefined => {
+  const key = exprKey(expr)
+  return l.traces.find((t) => exprKey(t.expr) === key)
+}
+
+/** その式のトレースの表示/非表示を反転する (無ければ足す) */
+export const toggleVisibleExpr = (l: ScopeLayout, expr: TraceExpr): ScopeLayout => {
+  const found = findByExpr(l, expr)
+  return found ? toggleVisible(l, found.id) : addTrace(l, expr)
+}
+
+/**
+ * 回路のノード集合に追従する (immutable)。
+ * - 新しく現れたノードは電圧トレースとして自動で足す (既定で全ノードが見える)
+ * - 消えたノードのトレースは外す。一度消したトレースは `knownNodes` に残るので
+ *   再描画で勝手に復活しない (ユーザが凡例で消した状態が保たれる)
+ */
+export const syncNodes = (
+  l: ScopeLayout,
+  nodeIds: readonly string[],
+): ScopeLayout => {
+  const present = new Set(nodeIds)
+  const known = new Set(l.knownNodes)
+  const gone = (t: Trace): boolean =>
+    (t.expr.kind === 'v' && !present.has(t.expr.node)) ||
+    (t.expr.kind === 'vdiff' && (!present.has(t.expr.a) || !present.has(t.expr.b)))
+
+  const kept = l.traces.filter((t) => !gone(t))
+  const fresh = nodeIds.filter((id) => !known.has(id))
+  if (kept.length === l.traces.length && fresh.length === 0) return l
+
+  let next: ScopeLayout = {
+    ...l,
+    traces: kept,
+    knownNodes: nodeIds,
+  }
+  for (const node of fresh) next = addTrace(next, { kind: 'v', node })
+  return next
+}
+
 /**
  * いま画面に出ている式の集合へレイアウトを追従させる (immutable)。
  * 消えた式のトレースは外し、増えた式は単位に合うペインへ足す。ペイン配属は
@@ -195,6 +240,21 @@ export const syncLayout = (
     if (!next.traces.some((t) => exprKey(t.expr) === key)) next = addTrace(next, expr)
   }
   return next
+}
+
+/**
+ * 「選択中素子の両端電圧」を 1 本だけ保つ (バッチ側オシロ用)。
+ * 選択が変わったら前の差動を外して差し替える。null で外すだけ。
+ */
+export const setSelectionDiff = (
+  l: ScopeLayout,
+  nodes: { a: string; b: string } | null,
+): ScopeLayout => {
+  const withoutDiff = l.traces.some((t) => t.expr.kind === 'vdiff')
+    ? { ...l, traces: l.traces.filter((t) => t.expr.kind !== 'vdiff') }
+    : l
+  if (!nodes) return withoutDiff
+  return addTrace(withoutDiff, { kind: 'vdiff', a: nodes.a, b: nodes.b })
 }
 
 /** ペインの Y レンジ設定 (auto ↔ manual) */

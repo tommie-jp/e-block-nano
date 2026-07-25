@@ -1,9 +1,8 @@
 import { describe, expect, test } from 'vitest'
-import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import type { NodeProbe } from '../waveProbes'
 import {
-  buildCurrentTraces,
-  buildVoltageTraces,
+  buildDrawTrace,
+  buildDrawTraces,
   dcOffsets,
   meanOf,
   rangeOf,
@@ -18,11 +17,6 @@ const probe = (nodeId: string, color = '#111', constant = false): NodeProbe => (
   label: nodeId.toUpperCase(),
   constant,
 })
-
-const waveforms: Waveforms = {
-  time: [0, 1, 2],
-  nodeVoltages: { n1: [1, 3, 1], n2: [0, 0, 0] },
-}
 
 /** レンジ確認用のダミー電圧トレース */
 const voltageTraces = (series: number[][]): DrawTrace[] =>
@@ -67,96 +61,100 @@ describe('traceRange', () => {
   })
 })
 
-describe('buildVoltageTraces', () => {
-  test('one trace per visible probe, in probe order', () => {
-    const traces = buildVoltageTraces({
-      waveforms,
-      visible: [probe('n1', '#abc')],
-      ac: false,
-      dc: new Map(),
-    })
+const input = (over: Partial<Parameters<typeof buildDrawTrace>[1]> = {}) => ({
+  waveforms: {
+    time: [0, 1, 2],
+    nodeVoltages: { n1: [1, 3, 1], n2: [0, 0, 0] },
+    elementCurrents: { b1: [0.001, 0.002, 0.003] },
+  },
+  probes: [probe('n1', '#abc')],
+  deviceLabels: { b1: 'LED' },
+  ac: false,
+  dc: new Map<string, number>(),
+  ...over,
+})
 
-    expect(traces).toEqual([
-      {
-        expr: { kind: 'v', node: 'n1' },
-        key: 'v:n1',
-        label: 'N1',
-        color: '#abc',
-        constant: false,
-        values: [1, 3, 1],
-      },
-    ])
+describe('buildDrawTrace', () => {
+  test('a node voltage takes its color and label from the board probe', () => {
+    const t = buildDrawTrace({ expr: { kind: 'v', node: 'n1' }, color: '#zzz' }, input())
+
+    expect(t).toEqual({
+      expr: { kind: 'v', node: 'n1' },
+      key: 'v:n1',
+      label: 'N1',
+      color: '#abc',
+      constant: false,
+      values: [1, 3, 1],
+    })
   })
 
   test('AC coupling subtracts the DC of that series', () => {
     const probes = [probe('n1')]
-    const traces = buildVoltageTraces({
-      waveforms,
-      visible: probes,
-      ac: true,
-      dc: dcOffsets(waveforms, probes),
-    })
+    const t = buildDrawTrace(
+      { expr: { kind: 'v', node: 'n1' }, color: '#111' },
+      input({ ac: true, dc: dcOffsets(input().waveforms, probes), probes }),
+    )
 
-    expect(traces[0].values[0]).toBeCloseTo(1 - 5 / 3)
+    expect(t?.values[0]).toBeCloseTo(1 - 5 / 3)
   })
 
-  test('appends the math trace last as a differential expression', () => {
-    const traces = buildVoltageTraces({
-      waveforms,
-      visible: [probe('n1')],
-      ac: false,
-      dc: new Map(),
-      mathNodes: { a: 'n1', b: 'n2', label: 'M: 両端電圧' },
-      mathValues: [1, 3, 1],
-    })
+  test('a current takes its color from the layout and its name from the device', () => {
+    const t = buildDrawTrace({ expr: { kind: 'i', block: 'b1' }, color: '#ffd54f' }, input())
 
-    expect(traces).toHaveLength(2)
-    expect(traces[1].expr).toEqual({ kind: 'vdiff', a: 'n1', b: 'n2' })
-    expect(traces[1].label).toBe('M: 両端電圧')
+    expect(t).toMatchObject({ key: 'i:b1', label: 'LED', color: '#ffd54f' })
   })
 
-  test('no math trace without values (a node may have vanished)', () => {
-    const traces = buildVoltageTraces({
-      waveforms,
-      visible: [probe('n1')],
-      ac: false,
-      dc: new Map(),
-      mathNodes: { a: 'n1', b: 'gone', label: 'M' },
-      mathValues: null,
-    })
+  test('power is evaluated from the terminal voltages and the current', () => {
+    const t = buildDrawTrace(
+      { expr: { kind: 'p', block: 'b1', a: 'n1', b: 'n2' }, color: '#b39ddb' },
+      input(),
+    )
 
-    expect(traces).toHaveLength(1)
+    expect(t?.label).toBe('LED 電力')
+    expect(t?.values).toEqual([0.001, 0.006, 0.003])
+  })
+
+  test('a differential is drawn as the white math trace', () => {
+    const t = buildDrawTrace(
+      { expr: { kind: 'vdiff', a: 'n1', b: 'n2' }, color: '#111' },
+      input(),
+    )
+
+    expect(t).toMatchObject({ key: 'd:n1-n2', color: '#ffffff', values: [1, 3, 1] })
+  })
+
+  test('is null when the data is not there yet', () => {
+    expect(
+      buildDrawTrace({ expr: { kind: 'v', node: 'gone' }, color: '#111' }, input()),
+    ).toBeNull()
   })
 })
 
-describe('buildCurrentTraces', () => {
-  const currents = { b1: [0.001, 0.002], b2: [-0.003, 0] }
+describe('buildDrawTraces', () => {
+  test('skips traces with no data instead of drawing garbage', () => {
+    const traces = buildDrawTraces(
+      [
+        { expr: { kind: 'v', node: 'n1' }, color: '#111' },
+        { expr: { kind: 'i', block: 'gone' }, color: '#222' },
+      ],
+      input(),
+    )
 
-  test('carries the current expression and a key that cannot collide with nodes', () => {
-    const traces = buildCurrentTraces(currents, { b1: 'LED' })
-
-    expect(traces.map((t) => t.key)).toEqual(['i:b1', 'i:b2'])
-    expect(traces[0].expr).toEqual({ kind: 'i', block: 'b1' })
-    expect(traces[0].label).toBe('LED')
-    expect(traces[1].label).toBe('b2') // ラベル未指定なら blockId
-  })
-
-  test('different elements get different colors', () => {
-    const traces = buildCurrentTraces(currents, {})
-
-    expect(traces[0].color).not.toBe(traces[1].color)
-  })
-
-  test('nothing probed means nothing to draw', () => {
-    expect(buildCurrentTraces({}, {})).toEqual([])
+    expect(traces.map((t) => t.key)).toEqual(['v:n1'])
   })
 })
 
 describe('tracesOfUnit', () => {
   test('splits a pane into its left-axis and right-axis series', () => {
-    const mixed = [...voltageTraces([[1]]), ...buildCurrentTraces({ b1: [0.001] }, {})]
+    const mixed = buildDrawTraces(
+      [
+        { expr: { kind: 'v', node: 'n1' }, color: '#111' },
+        { expr: { kind: 'i', block: 'b1' }, color: '#222' },
+      ],
+      input(),
+    )
 
-    expect(tracesOfUnit(mixed, 'V').map((t) => t.key)).toEqual(['v:n0'])
+    expect(tracesOfUnit(mixed, 'V').map((t) => t.key)).toEqual(['v:n1'])
     expect(tracesOfUnit(mixed, 'A').map((t) => t.key)).toEqual(['i:b1'])
     expect(tracesOfUnit(mixed, 'W')).toEqual([])
   })
