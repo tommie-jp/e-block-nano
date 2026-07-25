@@ -6,6 +6,7 @@ import {
   axisOf,
   createLayout,
   moveTrace,
+  nextPaneId,
   paneTraces,
   paneUnits,
   removePane,
@@ -112,6 +113,14 @@ describe('removeTrace / toggleVisible', () => {
 })
 
 describe('panes', () => {
+  test('nextPaneId tells the caller which pane addPane will create', () => {
+    const l = createLayout()
+
+    const id = nextPaneId(l)
+
+    expect(addPane(l).panes.at(-1)?.id).toBe(id)
+  })
+
   test('addPane appends an empty pane', () => {
     const l = addPane(createLayout())
 

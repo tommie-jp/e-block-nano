@@ -18,6 +18,7 @@ import { paneHeight, paneScales, panesForRender } from './paneLayout'
 import {
   addPane,
   addTrace,
+  nextPaneId,
   moveTrace,
   removePane,
   removeTrace,
@@ -102,6 +103,8 @@ export const WaveformChart = ({
 
   // --- トレース追加 (式エディタ) ---
   const [addOpen, setAddOpen] = useState(false)
+  // 選択中のペイン = 追加したトレースの行き先 (LTspice の active pane)
+  const [activePaneId, setActivePaneId] = useState<string | null>(null)
   const symbols: ExprSymbols = useMemo(
     () => ({
       node: (name) =>
@@ -218,6 +221,11 @@ export const WaveformChart = ({
   )
 
   // --- ペイン (LTspice のプロットペイン)。X 軸は共通、Y 軸はペインごと ---
+  // 選択が消えた (ペインを閉じた) ときは先頭に戻す
+  const activePane =
+    activePaneId && layout.panes.some((p) => p.id === activePaneId)
+      ? activePaneId
+      : layout.panes[0]?.id
   const height = paneHeight(layout.panes.length)
   const panes = useMemo(
     () => panesForRender(layout, drawTraces, win, height, c.gain, DEFAULT_Y_RANGE),
@@ -404,6 +412,8 @@ export const WaveformChart = ({
             tHead={tHead}
             reference={hasData ? reference : null}
             selectedBlockId={selectedBlockId}
+            active={p.pane.id === activePane}
+            onActivate={() => setActivePaneId(p.pane.id)}
             canRemove={panes.length > 1}
             onRemove={() => onLayout((l) => removePane(l, p.pane.id))}
             onMoveTrace={(key) =>
@@ -488,7 +498,12 @@ export const WaveformChart = ({
         controls={c}
         hasData={hasData}
         cursorsUsable={cursorsUsable}
-        onAddPane={() => onLayout(addPane)}
+        onAddPane={() => {
+          // 足したペインをそのまま選択する (次に追加するトレースはここへ入る)。
+          // id は決定的なので、更新関数の外で先に決める (レンダー中の setState を避ける)
+          setActivePaneId(nextPaneId(layout))
+          onLayout(addPane)
+        }}
         onAddTrace={() => setAddOpen((v) => !v)}
         addTraceOpen={addOpen}
         zoomed={zoom !== null}
@@ -533,7 +548,7 @@ export const WaveformChart = ({
         <AddTraceDialog
           quantities={quantities}
           symbols={symbols}
-          onAdd={(expr) => onLayout((l) => addTrace(l, expr))}
+          onAdd={(expr) => onLayout((l) => addTrace(l, expr, activePane))}
           onClose={() => setAddOpen(false)}
         />
       )}

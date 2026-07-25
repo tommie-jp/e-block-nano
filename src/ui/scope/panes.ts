@@ -145,10 +145,14 @@ export const toggleVisible = (l: ScopeLayout, traceId: string): ScopeLayout => (
   ),
 })
 
-export const addPane = (l: ScopeLayout): ScopeLayout => {
-  const seq = l.seq + 1
-  return { ...l, seq, panes: [...l.panes, { id: `pane-${seq}`, yMode: 'auto' }] }
-}
+/** 次に {@link addPane} が作るペインの id (追加後すぐ選択したい呼び出し側用) */
+export const nextPaneId = (l: ScopeLayout): string => `pane-${l.seq + 1}`
+
+export const addPane = (l: ScopeLayout): ScopeLayout => ({
+  ...l,
+  seq: l.seq + 1,
+  panes: [...l.panes, { id: nextPaneId(l), yMode: 'auto' }],
+})
 
 /**
  * ペインを閉じる。中のトレースも一緒に消える。最後の 1 枚は閉じられない。

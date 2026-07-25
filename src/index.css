@@ -503,6 +503,15 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+/* 選択中のペイン = トレース追加の行き先 */
+.scope-pane.active {
+  background: #1b2732;
+  border-color: #3a4a58;
 }
 
 /* ペイン見出し: トレースの札・Y 軸設定・閉じる */

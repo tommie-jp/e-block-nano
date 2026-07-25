@@ -30,6 +30,10 @@ interface ScopePaneProps {
   tHead: number
   reference?: Waveforms | null
   selectedBlockId?: string | null
+  /** 選択中のペインか (トレース追加の行き先。背景で示す) */
+  active: boolean
+  /** このペインを選択する */
+  onActivate: () => void
   /** ペインを閉じられるか (最後の 1 枚は閉じさせない) */
   canRemove: boolean
   onRemove: () => void
@@ -62,6 +66,8 @@ export const ScopePane = ({
   tHead,
   reference,
   selectedBlockId,
+  active,
+  onActivate,
   canRemove,
   onRemove,
   onMoveTrace,
@@ -79,9 +85,16 @@ export const ScopePane = ({
     : []
 
   return (
-    <div className="scope-pane">
+    // ペインのどこを触っても選択される (トレース追加の行き先になる)
+    <div
+      className={active ? 'scope-pane active' : 'scope-pane'}
+      onPointerDown={onActivate}
+    >
       <div className="pane-head">
-        <span className="pane-axis">{UNIT_DISPLAY[leftUnit].label}</span>
+        <span className="pane-axis" title={active ? 'トレース追加の行き先' : undefined}>
+          {active ? '● ' : ''}
+          {UNIT_DISPLAY[leftUnit].label}
+        </span>
         {traces.map((t) => (
           <button
             key={t.key}
