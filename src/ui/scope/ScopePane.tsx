@@ -5,7 +5,7 @@ import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import type { Scales } from './geometry'
 import type { Pane } from './panes'
 import { TimePlot } from './TimePlot'
-import { UNIT_DISPLAY } from './traceSeries'
+
 import type { DrawTrace } from './traceSeries'
 
 /**
@@ -21,6 +21,9 @@ interface ScopePaneProps {
   height: number
   time: readonly number[]
   leftUnit: Unit
+  /** 左軸の表示 (接頭辞つき単位記号と倍率)。親 (paneLayout) が決める */
+  leftLabel: string
+  leftScale: number
   rightUnit: Unit | null
   /** 右軸のレンジ (表示単位に換算済み) */
   rightAxis?: { min: number; max: number; unit: string }
@@ -59,6 +62,8 @@ export const ScopePane = ({
   height,
   time,
   leftUnit,
+  leftLabel,
+  leftScale,
   rightUnit,
   rightAxis,
   rightScale,
@@ -93,7 +98,7 @@ export const ScopePane = ({
       <div className="pane-head">
         <span className="pane-axis" title={active ? 'トレース追加の行き先' : undefined}>
           {active ? '● ' : ''}
-          {UNIT_DISPLAY[leftUnit].label}
+          {leftLabel || '—'}
         </span>
         {traces.map((t) => (
           <button
@@ -172,8 +177,8 @@ export const ScopePane = ({
           time={time}
           leftTraces={leftTraces}
           rightTraces={rightTraces}
-          leftUnit={UNIT_DISPLAY[leftUnit].label}
-          leftScale={UNIT_DISPLAY[leftUnit].scale}
+          leftUnit={leftLabel}
+          leftScale={leftScale}
           rightAxis={rightAxis}
           rightScale={rightScale}
           sweeping={sweeping}

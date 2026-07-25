@@ -3,28 +3,19 @@ import { unitOf } from '../../core/scope/traceExpr'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import { measureSeries } from '../../core/simulation/spice/measure'
 import { intervalStats } from './cursorReadout'
-import { fmtI, fmtV, fmtW } from './format'
+import { fmtHz, formatValue } from './format'
 import type { DrawTrace } from './traceSeries'
 
-/** 周波数を Hz / kHz で。発振無しは — */
-const fmtFreq = (f: number | null): string =>
-  f == null ? '—' : f >= 1000 ? `${(f / 1000).toFixed(2)} kHz` : `${f.toFixed(2)} Hz`
+/** 周波数。発振無しは — */
+const fmtFreq = (f: number | null): string => (f == null ? '—' : fmtHz(f))
 
 const fmtDuty = (d: number | null): string =>
   d == null ? '—' : `${(d * 100).toFixed(0)} %`
 
-/** 単位に合わせた値の書式 (V / mA / mW / 無次元) */
+/** その系列の単位に合わせた値の書式 (SI 接頭辞つき) */
 const formatter = (trace: DrawTrace): ((v: number) => string) => {
-  switch (unitOf(trace.expr)) {
-    case 'A':
-      return fmtI
-    case 'W':
-      return fmtW
-    case 'V':
-      return fmtV
-    default:
-      return (v) => v.toPrecision(3)
-  }
+  const unit = unitOf(trace.expr)
+  return (v) => formatValue(v, unit)
 }
 
 /**

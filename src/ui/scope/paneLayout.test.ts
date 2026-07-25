@@ -151,3 +151,52 @@ describe('panesForRender', () => {
     expect(pane.traces).toHaveLength(0)
   })
 })
+
+describe('軸の SI 接頭辞', () => {
+  test('a milliamp axis reads in mA', () => {
+    const layout = addTrace(createLayout(), { kind: 'i', block: 'b1' })
+
+    const [pane] = panesForRender(layout, [iTrace('b1', [0, 0.0012])], WIN, 240, 1, EMPTY)
+
+    expect(pane.leftLabel).toBe('mA')
+    expect(pane.leftScale).toBe(1000)
+  })
+
+  test('a microamp axis reads in µA (leak current)', () => {
+    const layout = addTrace(createLayout(), { kind: 'i', block: 'b1' })
+
+    const [pane] = panesForRender(layout, [iTrace('b1', [0, 1.5e-6])], WIN, 240, 1, EMPTY)
+
+    expect(pane.leftLabel).toBe('µA')
+    expect(pane.leftScale).toBe(1e6)
+  })
+
+  test('a volt-scale axis keeps V', () => {
+    const layout = addTrace(createLayout(), { kind: 'v', node: 'n1' })
+
+    const [pane] = panesForRender(layout, [vTrace('n1', [0, 3])], WIN, 240, 1, EMPTY)
+
+    expect(pane.leftLabel).toBe('V')
+    expect(pane.leftScale).toBe(1)
+  })
+
+  test('the right axis picks its own prefix, independent of the left', () => {
+    const layout = addTrace(addTrace(createLayout(), { kind: 'v', node: 'n1' }), {
+      kind: 'i',
+      block: 'b1',
+    })
+
+    const [pane] = panesForRender(
+      layout,
+      [vTrace('n1', [0, 3]), iTrace('b1', [0, 2e-6])],
+      WIN,
+      240,
+      1,
+      EMPTY,
+    )
+
+    expect(pane.leftLabel).toBe('V')
+    expect(pane.rightAxis?.unit).toBe('µA')
+    expect(pane.rightAxis?.max).toBeCloseTo(2.2)
+  })
+})

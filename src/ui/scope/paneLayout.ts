@@ -3,7 +3,8 @@ import type { Unit } from '../../core/scope/traceExpr'
 import { CHART, makeScales } from './geometry'
 import type { Scales } from './geometry'
 import type { Pane, ScopeLayout } from './panes'
-import { traceRange, UNIT_DISPLAY } from './traceSeries'
+import { pickPrefix } from '../../core/scope/siPrefix'
+import { traceRange, UNIT_SYMBOL } from './traceSeries'
 import type { DrawTrace } from './traceSeries'
 
 /**
@@ -65,6 +66,22 @@ export interface PaneRender {
   readonly rightAxis?: { min: number; max: number; unit: string }
   /** 右軸トレースの値を表示単位へ換算する倍率 */
   readonly rightScale: number
+  /** 左軸の値 → 表示単位の倍率と、接頭辞つきの単位記号 */
+  readonly leftScale: number
+  readonly leftLabel: string
+}
+
+/**
+ * その軸に出る値の大きさから接頭辞を選ぶ。レンジの**幅**で選ぶので、
+ * 目盛りの刻みが 1〜999 に収まって読みやすくなる。
+ */
+const axisPrefix = (
+  range: { min: number; max: number },
+  unit: Unit,
+): { scale: number; label: string } => {
+  const span = Math.abs(range.max - range.min)
+  const magnitude = span > 0 ? span : Math.max(Math.abs(range.min), Math.abs(range.max))
+  return pickPrefix(magnitude, UNIT_SYMBOL[unit])
 }
 
 /**
@@ -101,22 +118,25 @@ export const panesForRender = (
       : emptyRange
     const yRange = pane.yMode === 'manual' && pane.yRange ? pane.yRange : autoLeft
 
-    const rightScale = rightUnit ? UNIT_DISPLAY[rightUnit].scale : 1
-    const rightAxis = rightUnit
-      ? (() => {
-          const raw = withHeadroom(
-            traceRange(
-              traces.filter((t) => unitOf(t.expr) === rightUnit),
-              FLAT_PAD[rightUnit],
-            ),
-          )
-          return {
-            min: raw.min * rightScale,
-            max: raw.max * rightScale,
-            unit: UNIT_DISPLAY[rightUnit].label,
+    const left = axisPrefix(yRange, leftUnit)
+
+    const rightRaw = rightUnit
+      ? withHeadroom(
+          traceRange(
+            traces.filter((t) => unitOf(t.expr) === rightUnit),
+            FLAT_PAD[rightUnit],
+          ),
+        )
+      : null
+    const right = rightUnit && rightRaw ? axisPrefix(rightRaw, rightUnit) : null
+    const rightAxis =
+      rightRaw && right
+        ? {
+            min: rightRaw.min * right.scale,
+            max: rightRaw.max * right.scale,
+            unit: right.label,
           }
-        })()
-      : undefined
+        : undefined
 
     return {
       pane,
@@ -125,7 +145,9 @@ export const panesForRender = (
       rightUnit,
       scales: paneScales(win, yRange, height),
       rightAxis,
-      rightScale,
+      rightScale: right?.scale ?? 1,
+      leftScale: left.scale,
+      leftLabel: left.label,
     }
   })
 }

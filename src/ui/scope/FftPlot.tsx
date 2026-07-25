@@ -2,8 +2,9 @@ import type { ReactElement } from 'react'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import { magnitudeSpectrum } from '../../core/simulation/spice/fft'
 import type { FftWindow } from '../../core/simulation/spice/fft'
+import { formatWithPrefix, pickPrefix } from '../../core/scope/siPrefix'
 import { plotBox } from './geometry'
-import { niceTicks } from './ticks'
+import { axisLabel, niceTicks } from './ticks'
 
 interface FftPlotProps {
   waveforms: Waveforms
@@ -14,8 +15,9 @@ interface FftPlotProps {
   window?: FftWindow
 }
 
-const fmtHz = (f: number): string =>
-  f >= 1000 ? `${(f / 1000).toFixed(1)}k` : `${f.toFixed(f < 10 ? 1 : 0)}`
+/** 周波数の目盛り。単位記号は軸の右下にまとめて出すので数字だけ */
+const fmtTick = (f: number, scale: number, step: number): string =>
+  axisLabel(f, step, scale)
 
 /**
  * FFT モード: 選択ノードの片側振幅スペクトルを周波数領域で描く。
@@ -69,6 +71,9 @@ export const FftPlot = ({
   bars.push(`${sx(Math.min(fMax, freqs.at(-1)!))},${box.bottom}`)
 
   const fTicks = niceTicks(0, fMax, 6)
+  // 周波数軸の接頭辞 (Hz / kHz / MHz) は帯域の広さで決める
+  const fUnit = pickPrefix(fMax, 'Hz')
+  const fStep = fTicks.length > 1 ? fTicks[1] - fTicks[0] : 0
 
   return (
     <g className="fftplot">
@@ -76,7 +81,7 @@ export const FftPlot = ({
         <g key={f}>
           <line x1={sx(f)} y1={box.top} x2={sx(f)} y2={box.bottom} className="grat-line" />
           <text x={sx(f)} y={box.bottom + 12} className="grat-label" textAnchor="middle">
-            {fmtHz(f)}
+            {fmtTick(f, fUnit.scale, fStep)}
           </text>
         </g>
       ))}
@@ -91,10 +96,10 @@ export const FftPlot = ({
         className="fft-peak"
       />
       <text x={sx(freqs[peakIdx]) + 4} y={box.top + 10} className="grat-label">
-        {label}: {freqs[peakIdx].toFixed(2)} Hz
+        {label}: {formatWithPrefix(freqs[peakIdx], 'Hz')}
       </text>
       <text x={box.right} y={box.bottom + 12} className="grat-unit" textAnchor="end">
-        Hz
+        {fUnit.label}
       </text>
     </g>
   )

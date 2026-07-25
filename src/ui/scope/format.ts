@@ -1,24 +1,21 @@
-/** オシロの読み取り値の書式。桁に応じて単位を自動で選ぶ */
+import { formatWithPrefix } from '../../core/scope/siPrefix'
+import { UNIT_SYMBOL } from './traceSeries'
+import type { Unit } from '../../core/scope/traceExpr'
 
-export const fmtT = (t: number): string =>
-  Math.abs(t) >= 1 ? `${t.toFixed(2)} s` : `${(t * 1000).toFixed(0)} ms`
+/**
+ * オシロの読み取り値の書式。桁は SI 接頭辞で自動的に選ぶ
+ * (`core/scope/siPrefix`)。軸の目盛りと同じ表を引くので表記がずれない。
+ */
 
-export const fmtHz = (f: number): string =>
-  f >= 1000 ? `${(f / 1000).toFixed(2)} kHz` : `${f.toFixed(2)} Hz`
+/**
+ * 単位つきの値 (トレースの単位から記号を決める)。
+ * `reference` はその値が属する系列の代表的な大きさ (差分が 0 のときの桁合わせ用)。
+ */
+export const formatValue = (value: number, unit: Unit, reference?: number): string =>
+  formatWithPrefix(value, UNIT_SYMBOL[unit], reference)
 
-export const fmtV = (v: number): string =>
-  Math.abs(v) >= 1 ? `${v.toFixed(2)} V` : `${(v * 1000).toFixed(0)} mV`
-
-export const fmtI = (a: number): string => {
-  const abs = Math.abs(a)
-  if (abs >= 1e-3) return `${(a * 1e3).toFixed(2)} mA`
-  if (abs >= 1e-6) return `${(a * 1e6).toFixed(1)} µA`
-  return `${(a * 1e9).toFixed(0)} nA`
-}
-
-export const fmtW = (w: number): string => {
-  const abs = Math.abs(w)
-  if (abs >= 1e-3) return `${(w * 1e3).toFixed(2)} mW`
-  if (abs >= 1e-6) return `${(w * 1e6).toFixed(1)} µW`
-  return `${(w * 1e9).toFixed(0)} nW`
-}
+export const fmtT = (t: number): string => formatWithPrefix(t, 's')
+export const fmtHz = (f: number): string => formatWithPrefix(f, 'Hz')
+export const fmtV = (v: number): string => formatWithPrefix(v, 'V')
+export const fmtI = (a: number): string => formatWithPrefix(a, 'A')
+export const fmtW = (w: number): string => formatWithPrefix(w, 'W')

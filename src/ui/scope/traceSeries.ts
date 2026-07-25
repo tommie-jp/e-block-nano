@@ -24,12 +24,15 @@ export interface DrawTrace {
 /** Math (差動) トレースの色。どのノード色とも被らない白 */
 export const MATH_COLOR = '#ffffff'
 
-/** 表示単位の倍率と記号 (V はそのまま、電流・電力は m 接頭辞で読む) */
-export const UNIT_DISPLAY: Record<Unit, { scale: number; label: string }> = {
-  V: { scale: 1, label: 'V' },
-  A: { scale: 1000, label: 'mA' },
-  W: { scale: 1000, label: 'mW' },
-  x: { scale: 1, label: '—' },
+/**
+ * 単位の基本記号。実際の表示は軸やレンジの大きさに応じて SI 接頭辞が付く
+ * (`core/scope/siPrefix`)。単位を持たない量は空文字。
+ */
+export const UNIT_SYMBOL: Record<Unit, string> = {
+  V: 'V',
+  A: 'A',
+  W: 'W',
+  x: '',
 }
 
 export const meanOf = (values: readonly number[]): number =>

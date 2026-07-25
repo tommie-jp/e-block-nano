@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import { plotBox } from './geometry'
-import { niceTicks } from './ticks'
+import { pickPrefix } from '../../core/scope/siPrefix'
+import { axisLabel, niceTicks } from './ticks'
 
 const MAX_POINTS = 2000
 
@@ -51,6 +52,11 @@ export const XYPlot = ({
 
   const xTicks = niceTicks(xr.lo, xr.hi, 5)
   const yTicks = niceTicks(yr.lo, yr.hi, 5)
+  // 目盛りの桁を刻み幅に合わせ、単位は軸の大きさに応じた SI 接頭辞で出す
+  const xStep = xTicks.length > 1 ? xTicks[1] - xTicks[0] : 0
+  const yStep = yTicks.length > 1 ? yTicks[1] - yTicks[0] : 0
+  const xUnit = pickPrefix(xr.hi - xr.lo, 'V')
+  const yUnit = pickPrefix(yr.hi - yr.lo, 'V')
 
   return (
     <g className="xyplot">
@@ -64,7 +70,7 @@ export const XYPlot = ({
             className={v === 0 ? 'grat-line zero' : 'grat-line'}
           />
           <text x={sx(v)} y={box.bottom + 12} className="grat-label" textAnchor="middle">
-            {v}
+            {axisLabel(v, xStep, xUnit.scale)}
           </text>
         </g>
       ))}
@@ -78,16 +84,16 @@ export const XYPlot = ({
             className={v === 0 ? 'grat-line zero' : 'grat-line'}
           />
           <text x={box.left - 6} y={sy(v) + 3} className="grat-label" textAnchor="end">
-            {v}
+            {axisLabel(v, yStep, yUnit.scale)}
           </text>
         </g>
       ))}
       <polyline className="xy-line" points={parts.join(' ')} />
       <text x={box.right} y={box.bottom + 12} className="grat-unit" textAnchor="end">
-        X: {xLabel} [V]
+        X: {xLabel} [{xUnit.label}]
       </text>
       <text x={box.left - 6} y={box.top - 2} className="grat-unit" textAnchor="end">
-        Y: {yLabel} [V]
+        Y: {yLabel} [{yUnit.label}]
       </text>
     </g>
   )

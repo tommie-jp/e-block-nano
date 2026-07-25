@@ -4,13 +4,13 @@ import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import { measureSeries } from '../../core/simulation/spice/measure'
 import type { NodeProbe } from '../waveProbes'
 import { dominantOscillation, viewWindow } from '../waveProbes'
-import { exprKey } from '../../core/scope/traceExpr'
+import { exprKey, unitOf } from '../../core/scope/traceExpr'
 import type { ExprSymbols } from '../../core/scope/parseExpr'
 import { AddTraceDialog } from './AddTraceDialog'
 import { intervalStats, readCursors } from './cursorReadout'
 import { Cursors } from './Cursors'
 import type { CursorId } from './Cursors'
-import { fmtHz, fmtT, fmtV } from './format'
+import { fmtHz, fmtT, formatValue } from './format'
 import { CHART, DEFAULT_WINDOW, DEFAULT_Y_RANGE } from './geometry'
 import { FftPlot } from './FftPlot'
 import { MeasurementTable } from './MeasurementTable'
@@ -306,6 +306,8 @@ export const WaveformChart = ({
   const reading = readCursors(time, cursorTrace, c.cursor.tA, c.cursor.tB)
   const dt = reading?.dt ?? Math.abs(c.cursor.tB - c.cursor.tA)
   const dv = reading?.dv ?? Math.abs(c.cursor.vB - c.cursor.vA)
+  // 吸着していないときの縦カーソルは電圧軸なので V 扱い
+  const cursorUnit = cursorTrace ? unitOf(cursorTrace.expr) : 'V'
   // 平均・RMS: カーソルがあればその区間、無ければ表示中の窓全体
   const statsTrace = drawTraces.find((t) => t.key === statsKey) ?? null
   const stats = statsTrace
@@ -405,6 +407,8 @@ export const WaveformChart = ({
             height={height}
             time={hasData ? time : []}
             leftUnit={p.leftUnit}
+            leftLabel={p.leftLabel}
+            leftScale={p.leftScale}
             rightUnit={p.rightUnit}
             rightAxis={p.rightAxis}
             rightScale={p.rightScale}
@@ -525,19 +529,24 @@ export const WaveformChart = ({
               <span className="cursor-readout">
                 {cursorTrace ? `${cursorTrace.label}: ` : ''}
                 Δt = {fmtT(dt)}
-                {dt > 0 && <> / 1/Δt = {fmtHz(1 / dt)}</>} &nbsp; Δ = {fmtV(dv)}
-                {reading?.slope != null && <> / 傾き {fmtV(reading.slope)}/s</>}
+                {dt > 0 && <> / 1/Δt = {fmtHz(1 / dt)}</>} &nbsp; Δ ={' '}
+                {formatValue(dv, cursorUnit, reading?.vA)}
+                {reading?.slope != null && (
+                  <> / 傾き {formatValue(reading.slope, cursorUnit, reading.vA)}/s</>
+                )}
               </span>
             )}
             {stats && statsTrace && (
               <span className="math-readout">
-                {statsTrace.label}: 平均 {fmtV(stats.avg)} / RMS {fmtV(stats.rms)}
+                {statsTrace.label}: 平均 {formatValue(stats.avg, unitOf(statsTrace.expr))} /
+                RMS {formatValue(stats.rms, unitOf(statsTrace.expr))}
                 {c.cursorsOn ? ' (カーソル間)' : ' (表示区間)'}
               </span>
             )}
             {mathMeasure && (
               <span className="math-readout">
-                M (両端): Vpp {fmtV(mathMeasure.vpp)} / Vavg {fmtV(mathMeasure.vavg)}
+                M (両端): Vpp {formatValue(mathMeasure.vpp, 'V')} / Vavg{' '}
+                {formatValue(mathMeasure.vavg, 'V')}
               </span>
             )}
           </>

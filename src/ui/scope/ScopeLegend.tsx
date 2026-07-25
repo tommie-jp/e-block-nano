@@ -2,7 +2,7 @@ import type { MouseEvent, ReactElement } from 'react'
 import { unitOf } from '../../core/scope/traceExpr'
 import type { TraceExpr } from '../../core/scope/traceExpr'
 import type { NodeProbe } from '../waveProbes'
-import { fmtI, fmtW } from './format'
+import { formatValue } from './format'
 import type { DrawTrace } from './traceSeries'
 
 interface ScopeLegendProps {
@@ -81,8 +81,6 @@ export const ScopeLegend = ({
       const id = t.expr.kind === 'i' || t.expr.kind === 'p' ? t.expr.block : ''
       const last = t.values.length > 0 ? t.values[t.values.length - 1] : 0
       const unit = unitOf(t.expr)
-      const fmt =
-        unit === 'W' ? fmtW : unit === 'A' ? fmtI : (v: number) => v.toPrecision(3)
       const sel = id !== '' && id === selectedBlockId
       return (
         <li key={t.key}>
@@ -108,7 +106,7 @@ export const ScopeLegend = ({
                 background: `repeating-linear-gradient(90deg, ${t.color} 0 4px, transparent 4px 7px)`,
               }}
             />
-            {t.label} {fmt(last)}
+            {t.label} {formatValue(last, unit)}
             {/* 電力の符号は ngspice の電流の向きどおり。負 = その素子が出している */}
             {unit === 'W' && last < 0 ? ' (供給)' : ''}
             {sel ? ' ◀ 選択' : ''}
