@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import type { Netlist } from '../../core/netlist/build'
 import type { DeviceKind } from '../../core/parts/types'
+import { WIPER_DEFAULT_PCT, wiperOhms } from '../../core/parts/types'
+import { formatOhms } from '../units'
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import type { ScopeStream } from '../../core/simulation/streamPort'
 import { createScopeStream } from '../../io/scopeStreamEngine'
@@ -78,6 +80,8 @@ export const LiveScopePanel = ({
   const [swClosed, setSwClosed] = useState<Record<string, boolean>>({})
   // スライダーで動かした抵抗値 [Ω] (表示用。実際の反映は alter)
   const [rOhms, setROhms] = useState<Record<string, number>>({})
+  // 実行中に回した可変抵抗のワイパ位置 [%] (盤面には書き戻さない)
+  const [wiperPcts, setWiperPcts] = useState<Record<string, number>>({})
 
   const bufRef = useRef(createLiveBuffer(CAPACITY))
   const streamRef = useRef<ScopeStream | null>(null)
@@ -203,9 +207,7 @@ export const LiveScopePanel = ({
   }, [netlist])
 
   const resistors = netlist.elements.filter((e) => e.device.kind === 'resistor')
-  /** 抵抗値の表示 (1000 以上は kΩ)。例: 4.7 kΩ / 470 Ω */
-  const fmtOhms = (ohms: number): string =>
-    ohms >= 1000 ? `${(ohms / 1000).toFixed(1)} kΩ` : `${ohms.toFixed(0)} Ω`
+  const pots = netlist.elements.filter((e) => e.device.kind === 'potentiometer')
   const latest = bufRef.current.latestTime()
   const hasData = !!waveforms && waveforms.time.length > 0
   const status = !canRun
@@ -295,7 +297,48 @@ export const LiveScopePanel = ({
                     opacity: 0.9,
                   }}
                 >
-                  {fmtOhms(rOhms[e.blockId] ?? e.device.ohms)}
+                  {formatOhms(rOhms[e.blockId] ?? e.device.ohms)}
+                </span>
+              </label>
+            )
+          })}
+        </div>
+      )}
+
+      {pots.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {pots.map((e) => {
+            if (e.device.kind !== 'potentiometer') return null
+            const maxOhms = e.device.maxOhms
+            // 盤面の値を初期値にし、ここで回した分はライブ中だけの上書き
+            const pct =
+              wiperPcts[e.blockId] ?? e.state?.wiperPct ?? WIPER_DEFAULT_PCT
+            return (
+              <label key={e.blockId} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ minWidth: 90, fontSize: 12, opacity: 0.85 }}>
+                  {e.blockId} VR
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={pct}
+                  onChange={(ev) => {
+                    const next = Number(ev.target.value)
+                    setWiperPcts((m) => ({ ...m, [e.blockId]: next }))
+                    streamRef.current?.alter(e.blockId, wiperOhms(maxOhms, next))
+                  }}
+                />
+                <span
+                  style={{
+                    minWidth: 96,
+                    fontSize: 12,
+                    fontVariantNumeric: 'tabular-nums',
+                    opacity: 0.9,
+                  }}
+                >
+                  {pct}% / {formatOhms(wiperOhms(maxOhms, pct))}
                 </span>
               </label>
             )

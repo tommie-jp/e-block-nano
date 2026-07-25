@@ -2,11 +2,13 @@ import { describe, expect, test } from 'vitest'
 import {
   blockAt,
   createBoard,
+  isPotentiometer,
   isSwitch,
   moveBlock,
   placeBlock,
   removeBlock,
   rotateBlock,
+  setWiperPct,
   toggleSwitch,
 } from './board'
 
@@ -100,6 +102,61 @@ describe('board operations (immutable)', () => {
 
     const reopened = toggleSwitch(closed, id)
     expect(reopened.placements[0].state?.closed).toBe(false)
+  })
+
+  test('可変抵抗のワイパ位置を設定する (元の board は不変)', () => {
+    const board = placeBlock(createBoard(6, 8), 'potentiometer-100k', {
+      row: 0,
+      col: 0,
+    })
+    const id = board.placements[0].blockId
+
+    const turned = setWiperPct(board, id, 30)
+    expect(turned.placements[0].state?.wiperPct).toBe(30)
+    expect(board.placements[0].state?.wiperPct).toBeUndefined()
+  })
+
+  test('ワイパ位置は 0〜100 にクリップする (電気的な下限は wiperOhms が見る)', () => {
+    const board = placeBlock(createBoard(6, 8), 'potentiometer-100k', {
+      row: 0,
+      col: 0,
+    })
+    const id = board.placements[0].blockId
+
+    expect(setWiperPct(board, id, 250).placements[0].state?.wiperPct).toBe(100)
+    expect(setWiperPct(board, id, -5).placements[0].state?.wiperPct).toBe(0)
+  })
+
+  test('ワイパ位置の設定は他の state を壊さない', () => {
+    let board = placeBlock(createBoard(6, 8), 'potentiometer-100k', {
+      row: 0,
+      col: 0,
+    })
+    board = placeBlock(board, 'switch', { row: 1, col: 0 })
+    const potId = board.placements[0].blockId
+    const swId = board.placements[1].blockId
+
+    const next = setWiperPct(toggleSwitch(board, swId), potId, 80)
+    expect(next.placements[0].state?.wiperPct).toBe(80)
+    expect(next.placements[1].state?.closed).toBe(true)
+  })
+
+  test('可変抵抗以外へのワイパ設定は no-op', () => {
+    const board = placeBlock(createBoard(6, 8), 'resistor-1k', { row: 0, col: 0 })
+    const id = board.placements[0].blockId
+
+    expect(setWiperPct(board, id, 30).placements[0].state).toBeUndefined()
+  })
+
+  test('isPotentiometer は可変抵抗だけ true', () => {
+    let board = placeBlock(createBoard(6, 8), 'potentiometer-100k', {
+      row: 0,
+      col: 0,
+    })
+    board = placeBlock(board, 'resistor-1k', { row: 1, col: 0 })
+
+    expect(isPotentiometer(board, board.placements[0].blockId)).toBe(true)
+    expect(isPotentiometer(board, board.placements[1].blockId)).toBe(false)
   })
 
   test('toggling a non-switch block is a no-op', () => {

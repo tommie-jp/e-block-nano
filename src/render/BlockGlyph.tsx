@@ -175,6 +175,40 @@ const TwoTerminalSymbol = ({
             <line x1={C} y1={C + 4} x2={C} y2={CELL_SIZE - STUB_LEN} />
           </g>
         )
+      case 'potentiometer':
+        // 抵抗 (長方形) に斜めの矢印を重ねる = 可変
+        return (
+          <g className="glyph-line">
+            <line x1={C} y1={STUB_LEN} x2={C} y2={C - 15} />
+            <rect x={C - 7} y={C - 15} width={14} height={30} fill="none" />
+            <line x1={C} y1={C + 15} x2={C} y2={CELL_SIZE - STUB_LEN} />
+            <line x1={C - 14} y1={C + 12} x2={C + 13} y2={C - 13} />
+            <polygon
+              points={`${C + 14},${C - 14} ${C + 6},${C - 12} ${C + 12},${C - 6}`}
+              fill="currentColor"
+            />
+          </g>
+        )
+      case 'ac-source':
+        // 円の中に波形。正弦は S 字カーブ、パルスは矩形
+        return (
+          <g className="glyph-line">
+            <line x1={C} y1={STUB_LEN} x2={C} y2={C - 13} />
+            <circle cx={C} cy={C} r={13} fill="none" />
+            {device.wave.kind === 'sin' ? (
+              <path
+                d={`M${C - 8},${C} Q${C - 4},${C - 9} ${C},${C} T${C + 8},${C}`}
+                fill="none"
+              />
+            ) : (
+              <path
+                d={`M${C - 9},${C + 5} H${C - 4} V${C - 5} H${C + 2} V${C + 5} H${C + 9}`}
+                fill="none"
+              />
+            )}
+            <line x1={C} y1={C + 13} x2={C} y2={CELL_SIZE - STUB_LEN} />
+          </g>
+        )
       default:
         return <circle cx={C} cy={C} r={8} className="glyph-line" fill="none" />
     }
@@ -227,13 +261,23 @@ const symbolFor = (
 
 /** 部品につける短い値ラベル */
 const LABELS: Record<string, string> = {
+  'resistor-100': '100Ω',
+  'resistor-470': '470Ω',
   'resistor-1k': '1kΩ',
+  'resistor-4k7': '4.7kΩ',
   'resistor-10k': '10kΩ',
   'resistor-33k': '33kΩ',
   'resistor-47k': '47kΩ',
+  'resistor-100k': '100kΩ',
+  'potentiometer-100k': '100k VR',
   'capacitor-100n': '0.1µ',
+  'capacitor-1u': '1µ',
+  'capacitor-4u7': '4.7µ',
   'capacitor-10u': '10µ',
   'capacitor-100u': '100µ',
+  'source-sine-10m': '10mV',
+  'source-sine-500m': '0.5V',
+  'source-pulse': 'TRIG',
   'led-red': 'LED',
   'diode-schottky': 'BAT43',
   'transistor-npn': 'NPN',

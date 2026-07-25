@@ -95,3 +95,25 @@ export const isSwitch = (board: Board, blockId: string): boolean => {
   const p = board.placements.find((pl) => pl.blockId === blockId)
   return p !== undefined && getPart(p.partId).device?.kind === 'switch'
 }
+
+/**
+ * 可変抵抗のワイパ位置 [%] を設定する (可変抵抗以外のブロックは無変更)。
+ * 値は 0〜100 にクリップする。実効抵抗への換算と 0Ω 回避は
+ * `core/parts/types.ts` の `wiperOhms` が見る。
+ */
+export const setWiperPct = (
+  board: Board,
+  blockId: string,
+  pct: number,
+): Board =>
+  updatePlacement(board, blockId, (p) => {
+    if (getPart(p.partId).device?.kind !== 'potentiometer') return p
+    const clamped = Math.min(100, Math.max(0, pct))
+    return { ...p, state: { ...p.state, wiperPct: clamped } }
+  })
+
+/** ブロックが可変抵抗か判定 (UI がつまみを出すため) */
+export const isPotentiometer = (board: Board, blockId: string): boolean => {
+  const p = board.placements.find((pl) => pl.blockId === blockId)
+  return p !== undefined && getPart(p.partId).device?.kind === 'potentiometer'
+}

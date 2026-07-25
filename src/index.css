@@ -336,6 +336,15 @@ body {
   cursor: default;
 }
 
+/* 可変抵抗のつまみ (選択中だけツールバーに出る) */
+.wiper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
 /* トグルボタン: オン/オフ状態を常時インジケータ(丸)で示し、オンは強調表示。
    基本の見た目は各コンテナの button 規則から継承する */
 .toggle::before {

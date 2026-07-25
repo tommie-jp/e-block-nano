@@ -18,6 +18,7 @@ import { getSample, SAMPLE_CIRCUITS } from '../fixtures/circuits/samples'
 import { BoardView } from './BoardView'
 import { HeaderMenu } from './HeaderMenu'
 import { PartsPalette } from './PartsPalette'
+import { formatOhms } from './units'
 import type { NodeProbe } from './waveProbes'
 import { WaveformPanel } from './WaveformPanel'
 import type { LiveCurrents } from './scope/liveBuffer'
@@ -316,6 +317,26 @@ export const App = (): ReactElement => {
             >
               SW {selectedSwitchClosed ? '閉' : '開'} (C)
             </button>
+            {editor.selectedWiper && (
+              <label
+                className="wiper"
+                title="可変抵抗のつまみ。盤面に保存され、ライブオシロ実行中は alter で反映される"
+              >
+                VR
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={editor.selectedWiper.pct}
+                  onChange={(e) => editor.setSelectedWiper(Number(e.target.value))}
+                />
+                <span className="status">
+                  {editor.selectedWiper.pct}% /{' '}
+                  {formatOhms(editor.selectedWiper.ohms)}
+                </span>
+              </label>
+            )}
             <button
               type="button"
               disabled={!editor.selectedBlockId}
