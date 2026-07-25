@@ -1,11 +1,12 @@
 import type { Waveforms } from '../../core/simulation/spice/mapResult'
 import type { NodeProbe } from '../waveProbes'
 
-/** チャート寸法 (SVG viewBox 座標)。目盛りラベル用にマージンを取る */
+/** チャート寸法 (SVG viewBox 座標)。目盛りラベル用にマージンを取る。
+ *  right は電流(mA)の右軸ラベル、top/bottom は単位(V/s/mA)が目盛りと重ならない余白。 */
 export const CHART = {
   W: 600,
   H: 240,
-  M: { top: 10, right: 12, bottom: 24, left: 46 },
+  M: { top: 16, right: 44, bottom: 30, left: 46 },
 } as const
 
 /** データが無い時に空オシロを描くための既定スケール (TRAN_STOP=5s / 0..3V 相当) */

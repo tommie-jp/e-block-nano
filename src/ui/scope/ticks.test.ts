@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { niceTicks } from './ticks'
+import { minorTicks, niceTicks } from './ticks'
 
 describe('niceTicks', () => {
   test('unit steps over 0..3', () => {
@@ -34,5 +34,32 @@ describe('niceTicks', () => {
     for (const t of ticks) {
       expect(Number(t.toFixed(10))).toBe(t)
     }
+  })
+})
+
+describe('minorTicks', () => {
+  test('主目盛りの間を等分し、主目盛り位置は含めない', () => {
+    // 0..3, major=1, sub=5 → minor 0.2 刻み、1/2/3 は除外
+    const minor = minorTicks(0, 3, 3, 5)
+    expect(minor).toContain(0.2)
+    expect(minor).toContain(0.8)
+    expect(minor).not.toContain(1) // 主目盛りは含めない
+    expect(minor).not.toContain(2)
+    expect(minor).not.toContain(0)
+  })
+
+  test('副目盛りは主目盛りより細かい (本数が多い)', () => {
+    expect(minorTicks(0, 3, 3, 5).length).toBeGreaterThan(niceTicks(0, 3, 3).length)
+  })
+
+  test('浮動小数ノイズを出さない', () => {
+    for (const t of minorTicks(0, 0.5, 5, 5)) {
+      expect(Number(t.toFixed(10))).toBe(t)
+    }
+  })
+
+  test('退化ケースは空', () => {
+    expect(minorTicks(1, 1)).toEqual([])
+    expect(minorTicks(Number.NaN, 3)).toEqual([])
   })
 })

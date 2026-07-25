@@ -394,7 +394,17 @@ export const WaveformChart = ({
         onPointerMove={onMove}
         onPointerUp={endDrag}
       >
-        {view === 'time' && <Graticule scales={scales} showY={!stacked} />}
+        {view === 'time' && (
+          <Graticule
+            scales={scales}
+            showY={!stacked}
+            currentRange={
+              !stacked && hasCurrents
+                ? { min: iRange.min * 1000, max: iRange.max * 1000 }
+                : undefined
+            }
+          />
+        )}
 
         {view === 'time' &&
           !stacked &&
@@ -522,29 +532,6 @@ export const WaveformChart = ({
               />
             )
           })}
-        {view === 'time' && !stacked && hasCurrents && (
-          <>
-            <text
-              x={scales.plot.right - 2}
-              y={scales.plot.top + 10}
-              textAnchor="end"
-              className="lane-label"
-              fill={CURRENT_COLORS[0]}
-            >
-              {fmtI(iRange.max)}
-            </text>
-            <text
-              x={scales.plot.right - 2}
-              y={scales.plot.bottom - 2}
-              textAnchor="end"
-              className="lane-label"
-              fill={CURRENT_COLORS[0]}
-            >
-              {fmtI(iRange.min)}
-            </text>
-          </>
-        )}
-
         {view === 'xy' && hasData && xX && xY && (
           <XYPlot
             waveforms={waveforms}
