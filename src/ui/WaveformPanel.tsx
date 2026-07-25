@@ -4,6 +4,7 @@ import type { Netlist } from '../core/netlist/build'
 import type { SimulationPort } from '../core/simulation/port'
 import { resampleToAudio } from '../core/simulation/spice/audio'
 import type { Waveforms } from '../core/simulation/spice/mapResult'
+import { tranPlanFor } from '../core/simulation/spice/tranPlan'
 import type { NodeProbe } from './waveProbes'
 import { dominantOscillation, selectProbes } from './waveProbes'
 import { WaveformChart } from './scope/WaveformChart'
@@ -31,9 +32,6 @@ interface WaveformPanelProps {
   selectedBlockId?: string | null
 }
 
-// PoC 既定の過渡設定 (RC の τ=1s が収まる範囲)。将来サンプルごとに指定可
-const TRAN_STEP = 0.02
-const TRAN_STOP = 5
 // 音を鳴らすときの目標基本周波数 [Hz] (低速の発振をここへピッチシフト)
 const AUDIO_TARGET_HZ = 330
 
@@ -86,9 +84,10 @@ export const WaveformPanel = ({
     return m
   }, [netlist])
 
+  // 時間窓は回路から決める (1kHz の増幅器と秒オーダーの点滅を同じ画面で扱う)
   const analysis = useMemo(
-    () => ({ kind: 'tran' as const, step: TRAN_STEP, stop: TRAN_STOP }),
-    [],
+    () => ({ kind: 'tran' as const, ...tranPlanFor(netlist) }),
+    [netlist],
   )
 
   // 表示する波形。回路エラー中は古い結果を出さない (null=空オシロ)

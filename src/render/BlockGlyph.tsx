@@ -269,6 +269,7 @@ const LABELS: Record<string, string> = {
   'resistor-33k': '33kΩ',
   'resistor-47k': '47kΩ',
   'resistor-100k': '100kΩ',
+  'resistor-1m': '1MΩ',
   'potentiometer-100k': '100k VR',
   'capacitor-100n': '0.1µ',
   'capacitor-1u': '1µ',

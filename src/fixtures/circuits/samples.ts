@@ -3,6 +3,8 @@ import voltageDivider from './voltage-divider.json'
 import parallelResistors from './parallel-resistors.json'
 import rcCharge from './rc-charge.json'
 import astableMultivibrator from './astable-multivibrator.json'
+import commonEmitterAmp from './common-emitter-amp.json'
+import emitterFollower from './emitter-follower.json'
 
 /**
  * アプリ同梱のサンプル回路 (読み取り専用の教材・出発点)。
@@ -62,6 +64,24 @@ export const SAMPLE_CIRCUITS: readonly SampleCircuit[] = [
       '04 と同じマルチバイブレータを「音」として確認する。波形パネルの' +
       '「音を鳴らす」で、発振をそのまま可聴域へピッチシフトして再生する(Web Audio)。',
     data: astableMultivibrator,
+  },
+  {
+    id: 'common-emitter-amp',
+    name: '06-1石アンプ',
+    description:
+      'エミッタ接地増幅。1MΩ でベースをバイアスし(Vc≈1.9V)、10mV/1kHz の信号を' +
+      '1µF で結合して入れる。コレクタに約 22 倍で反転して出る。利得は教科書の' +
+      'Rc/Re=47 ではなく Rc/(Re+re) — エミッタ内部抵抗 re≈116Ω が Re=100Ω と同程度だから。',
+    data: commonEmitterAmp,
+  },
+  {
+    id: 'emitter-follower',
+    name: '07-エミッタフォロワ',
+    description:
+      'コレクタ接地。06 の Rc を配線に、Re を 10kΩ に替えた同じ骨格。利得は約 1 倍で' +
+      '反転せず、出力(エミッタ)は入力(ベース)より約 0.7V 低い。電圧は増えないが' +
+      'インピーダンス変換になる。',
+    data: emitterFollower,
   },
 ]
 

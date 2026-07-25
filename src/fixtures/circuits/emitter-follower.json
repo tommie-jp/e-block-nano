@@ -1,0 +1,215 @@
+{
+  "version": 1,
+  "rows": 8,
+  "cols": 12,
+  "placements": [
+    {
+      "partId": "battery-3v",
+      "cell": {
+        "row": 4,
+        "col": 1
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 3,
+        "col": 1
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-l",
+      "cell": {
+        "row": 2,
+        "col": 1
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 2,
+        "col": 2
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 2,
+        "col": 3
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 2,
+        "col": 4
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 2,
+        "col": 5
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-t",
+      "cell": {
+        "row": 2,
+        "col": 6
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-l",
+      "cell": {
+        "row": 2,
+        "col": 7
+      },
+      "orientation": 180
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 3,
+        "col": 6
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "transistor-npn",
+      "cell": {
+        "row": 4,
+        "col": 6
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "resistor-10k",
+      "cell": {
+        "row": 5,
+        "col": 6
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 6,
+        "col": 6
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "resistor-1m",
+      "cell": {
+        "row": 3,
+        "col": 7
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-t",
+      "cell": {
+        "row": 4,
+        "col": 7
+      },
+      "orientation": 180
+    },
+    {
+      "partId": "capacitor-1u",
+      "cell": {
+        "row": 5,
+        "col": 7
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "source-sine-500m",
+      "cell": {
+        "row": 6,
+        "col": 7
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 5,
+        "col": 1
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 6,
+        "col": 1
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-l",
+      "cell": {
+        "row": 7,
+        "col": 1
+      },
+      "orientation": 0
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 7,
+        "col": 2
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 7,
+        "col": 3
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 7,
+        "col": 4
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-i",
+      "cell": {
+        "row": 7,
+        "col": 5
+      },
+      "orientation": 90
+    },
+    {
+      "partId": "wire-t",
+      "cell": {
+        "row": 7,
+        "col": 6
+      },
+      "orientation": 270
+    },
+    {
+      "partId": "wire-l",
+      "cell": {
+        "row": 7,
+        "col": 7
+      },
+      "orientation": 270
+    }
+  ]
+}

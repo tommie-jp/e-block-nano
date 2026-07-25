@@ -83,6 +83,13 @@ export const PARTS: readonly Part[] = [
     device: { kind: 'resistor', ohms: 100000, pins: { a: 'N', b: 'S' } },
   },
   {
+    // 1石アンプ/フォロワのベースバイアス用 (µA 級のベース電流を作る)
+    id: 'resistor-1m',
+    name: '抵抗 1MΩ',
+    internalNets: [],
+    device: { kind: 'resistor', ohms: 1000000, pins: { a: 'N', b: 'S' } },
+  },
+  {
     // 可変抵抗。ワイパ位置は配置ごとの state.wiperPct (省略時 50%)
     id: 'potentiometer-100k',
     name: '可変抵抗 100kΩ',

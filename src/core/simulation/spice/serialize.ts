@@ -1,6 +1,7 @@
 import type { Element, Netlist } from '../../netlist/build'
 import type { SourceWave } from '../../parts/types'
 import { wiperOhms } from '../../parts/types'
+import { tranPlanFor } from './tranPlan'
 
 /**
  * Netlist → SPICE netlist の変換器 (純関数)。唯一のエンジンである
@@ -48,19 +49,9 @@ export type Analysis =
       readonly kind: 'tran'
       readonly step: number
       readonly stop: number
-      /** 省略時は互換動作 ({@link legacyStartup}) */
+      /** 省略時は回路から決める ({@link tranPlanFor}) */
       readonly startup?: TranStartup
     }
-
-/**
- * `startup` 省略時の起動条件。NPN があればキック付き、無ければ初期値 0 という
- * 従来の暗黙ルールをそのまま残したもの。各サンプルが起動条件を明示するように
- * なれば不要になる (docs/08 Ph1-e)。
- */
-const legacyStartup = (netlist: Netlist): TranStartup =>
-  netlist.elements.some((e) => e.device.kind === 'transistor-npn')
-    ? 'uic-kick'
-    : 'zero-state'
 
 /** 変換結果。結果ベクトル名をうちの nodeId / blockId へ戻すための対応表つき */
 export interface SpiceNetlist {
@@ -117,7 +108,7 @@ export const toSpice = (
   if (analysis.kind === 'op') {
     lines.push('.op')
   } else {
-    const startup = analysis.startup ?? legacyStartup(netlist)
+    const startup = analysis.startup ?? tranPlanFor(netlist).startup
     if (startup === 'uic-kick') {
       // 最初のトランジスタを明確に ON (ベース高・コレクタ低) に固定した初期条件から
       // 始めて確実に発振させる。

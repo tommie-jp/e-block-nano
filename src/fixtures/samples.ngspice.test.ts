@@ -3,6 +3,7 @@ import { buildNetlist } from '../core/netlist/build'
 import { deserializeBoard } from '../core/persistence/boardFile'
 import { createNgspiceSimulator } from '../io/ngspiceSimulator'
 import { getSample } from './circuits/samples'
+import { tranPlanFor } from '../core/simulation/spice/tranPlan'
 
 /**
  * サンプル回路を実 ngspice-wasm で解いて解析解と突き合わせる統合テスト。
@@ -82,5 +83,73 @@ describe('sample circuits vs. analytic values (ngspice)', () => {
 
     expect(result.status).toBe('ok')
     expect(result.waveforms?.time.length ?? 0).toBeGreaterThan(100)
+  }, 60000)
+
+  /**
+   * 06/07 は信号源つきなので tranPlanFor が「1kHz の 5 周期 / 200点」の窓と
+   * 動作点起動を選ぶ。ここでは解析解と突合する:
+   *   06: Av = -Rc/(Re+re)、re = 26mV/Ic ≈ 116Ω → 約 22 倍で反転
+   *   07: Av ≈ Re/(Re+re) ≈ 1、Vb - Ve ≈ 0.7V
+   */
+  const runTran = async (id: string) => {
+    const sample = getSample(id)!
+    const netlist = buildNetlist(deserializeBoard(JSON.stringify(sample.data)))
+    const plan = tranPlanFor(netlist)
+    const result = await createNgspiceSimulator().simulate(netlist, {
+      kind: 'tran',
+      ...plan,
+    })
+    return { netlist, result }
+  }
+
+  /** 整定を避けて後半だけで振幅を測る */
+  const peakToPeak = (series: readonly number[]): number => {
+    const tail = series.slice(Math.floor(series.length / 2))
+    return Math.max(...tail) - Math.min(...tail)
+  }
+
+  test('06-1石アンプ: 約 22 倍で反転増幅 (Av = -Rc/(Re+re))', async () => {
+    const { netlist, result } = await runTran('common-emitter-amp')
+    const wf = result.waveforms!
+    const q = netlist.elements.find((e) => e.device.kind === 'transistor-npn')!
+    const src = netlist.elements.find((e) => e.device.kind === 'ac-source')!
+
+    const vin = wf.nodeVoltages[src.pinNodes.plus]
+    const vout = wf.nodeVoltages[q.pinNodes.collector]
+    // 入力 20mVpp → 出力は 15〜30 倍 (解析解 21.8)
+    const gain = peakToPeak(vout) / peakToPeak(vin)
+    expect(gain).toBeGreaterThan(15)
+    expect(gain).toBeLessThan(30)
+    // レールでクリップしていない (3V 電源で振幅 0.5V 弱)
+    expect(Math.max(...vout)).toBeLessThan(3)
+    expect(Math.min(...vout)).toBeGreaterThan(0.5)
+
+    // 位相反転: 入力が最大の瞬間、出力は平均より低い
+    const tail = (s: readonly number[]) => s.slice(Math.floor(s.length / 2))
+    const inTail = tail(vin)
+    const outTail = tail(vout)
+    const iPeak = inTail.indexOf(Math.max(...inTail))
+    const outAvg = outTail.reduce((a, b) => a + b, 0) / outTail.length
+    expect(outTail[iPeak]).toBeLessThan(outAvg)
+  }, 60000)
+
+  test('07-エミッタフォロワ: 利得 ≈ 1、出力はベースより約 0.7V 低い', async () => {
+    const { netlist, result } = await runTran('emitter-follower')
+    const wf = result.waveforms!
+    const q = netlist.elements.find((e) => e.device.kind === 'transistor-npn')!
+    const src = netlist.elements.find((e) => e.device.kind === 'ac-source')!
+
+    const gain =
+      peakToPeak(wf.nodeVoltages[q.pinNodes.emitter]) /
+      peakToPeak(wf.nodeVoltages[src.pinNodes.plus])
+    expect(gain).toBeGreaterThan(0.9)
+    expect(gain).toBeLessThanOrEqual(1.0)
+
+    // Vbe: ベースとエミッタの差はどの時刻でも 0.6〜0.8V
+    const vb = wf.nodeVoltages[q.pinNodes.base]
+    const ve = wf.nodeVoltages[q.pinNodes.emitter]
+    const diffs = vb.map((v, i) => v - ve[i]).slice(Math.floor(vb.length / 2))
+    expect(Math.min(...diffs)).toBeGreaterThan(0.6)
+    expect(Math.max(...diffs)).toBeLessThan(0.8)
   }, 60000)
 })

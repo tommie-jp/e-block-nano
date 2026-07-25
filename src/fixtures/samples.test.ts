@@ -94,3 +94,65 @@ describe('astable multivibrator topology', () => {
     expect(new Set(capCollectors).size).toBe(2)
   })
 })
+
+/**
+ * 06/07 は「1 個の NPN をどう繋ぐか」で性格が変わる回路。数値 (利得) は
+ * samples.ngspice.test.ts で解析解と突合し、ここでは engine を使わずに
+ * 配線トポロジ (どのノードに何が挟まるか) を決定論的に守る。
+ */
+describe('single-transistor stage topology', () => {
+  const load = (id: string) =>
+    buildNetlist(deserializeBoard(JSON.stringify(getSample(id)!.data)))
+
+  /** 素子の 2 ピンが指定ノードの組と一致するか */
+  const spans = (e: Element, x: string, y: string): boolean => {
+    const ends = new Set(Object.values(e.pinNodes))
+    return ends.size === 2 && ends.has(x) && ends.has(y)
+  }
+
+  test('06-1石アンプ: Rc がコレクタと電源、Re がエミッタと GND、1MΩ がベースと電源', () => {
+    const netlist = load('common-emitter-amp')
+    const els = netlist.elements
+    const q = els.find((e) => e.device.kind === 'transistor-npn')!
+    const battery = els.find((e) => e.device.kind === 'battery')!
+    const vcc = battery.pinNodes.plus
+    const gnd = netlist.groundNode!
+
+    expect(vcc).not.toBe(gnd)
+    // Rc = 4.7kΩ: 電源 → コレクタ
+    const rc = els.find(
+      (e) => e.device.kind === 'resistor' && e.device.ohms === 4700,
+    )!
+    expect(spans(rc, vcc, q.pinNodes.collector)).toBe(true)
+    // Re = 100Ω: エミッタ → GND
+    const re = els.find(
+      (e) => e.device.kind === 'resistor' && e.device.ohms === 100,
+    )!
+    expect(spans(re, q.pinNodes.emitter, gnd)).toBe(true)
+    // Rb = 1MΩ: 電源 → ベース (自己バイアス)
+    const rb = els.find(
+      (e) => e.device.kind === 'resistor' && e.device.ohms === 1_000_000,
+    )!
+    expect(spans(rb, vcc, q.pinNodes.base)).toBe(true)
+    // 結合コンデンサ: ベース ↔ 信号源
+    const src = els.find((e) => e.device.kind === 'ac-source')!
+    const cap = els.find((e) => e.device.kind === 'capacitor')!
+    expect(spans(cap, q.pinNodes.base, src.pinNodes.plus)).toBe(true)
+    expect(src.pinNodes.minus).toBe(gnd)
+  })
+
+  test('07-エミッタフォロワ: コレクタが電源直結、負荷はエミッタ側だけ', () => {
+    const netlist = load('emitter-follower')
+    const els = netlist.elements
+    const q = els.find((e) => e.device.kind === 'transistor-npn')!
+    const battery = els.find((e) => e.device.kind === 'battery')!
+
+    // コレクタ = 電源ノードそのもの (間に素子が無い)
+    expect(q.pinNodes.collector).toBe(battery.pinNodes.plus)
+    // 出力はエミッタ。10kΩ が エミッタ → GND
+    const re = els.find(
+      (e) => e.device.kind === 'resistor' && e.device.ohms === 10_000,
+    )!
+    expect(spans(re, q.pinNodes.emitter, netlist.groundNode!)).toBe(true)
+  })
+})
